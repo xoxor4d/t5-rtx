@@ -1,5 +1,8 @@
 ﻿#pragma once
 
+#pragma warning(push)
+#pragma warning(disable: 4324)
+
 namespace game
 {
 	struct GfxBackEndData;
@@ -221,7 +224,7 @@ namespace game
 	union GfxColor
 	{
 		unsigned int packed;
-		char array[4];
+		unsigned __int8 array[4];
 	};
 
 	struct GfxDrawSurfFields
@@ -788,7 +791,7 @@ namespace game
 		$78B26C2CBD2C5335330BFD0A20A3805F ___u0;
 	};
 
-	struct __declspec(align(4)) GfxDrawSurfListInfo
+	struct GfxDrawSurfListInfo
 	{
 		GfxDrawSurf* drawSurfs;
 		unsigned int drawSurfCount;
@@ -1910,5 +1913,7 @@ namespace game
 	{
 
 	}
+
+#pragma warning(pop)
 }
 

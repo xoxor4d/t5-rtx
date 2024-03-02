@@ -431,27 +431,27 @@ namespace components::sp
 		//const auto dynamicIndexBufferPool = reinterpret_cast<game::GfxIndexBufferState*>(0x4170718);
 		//auto dynamicIndexBuffer = reinterpret_cast<game::GfxIndexBufferState*>(0x4170728);
 
-		const auto gfx_buf = game::sp::gfx_buf;
+		const auto buf = game::sp::gfx_buf;
 		const auto index_count = 3 * tri_count;
 
-		if (index_count + gfx_buf->dynamicIndexBuffer->used > gfx_buf->dynamicIndexBuffer->total)
+		if (index_count + buf->dynamicIndexBuffer->used > buf->dynamicIndexBuffer->total)
 		{
-			gfx_buf->dynamicIndexBuffer->used = 0;
+			buf->dynamicIndexBuffer->used = 0;
 		}
 
-		if (!gfx_buf->dynamicIndexBuffer->used)
+		if (!buf->dynamicIndexBuffer->used)
 		{
-			gfx_buf->dynamicIndexBuffer = gfx_buf->dynamicIndexBufferPool;
+			buf->dynamicIndexBuffer = buf->dynamicIndexBufferPool;
 		}
 
-		const auto base_index = gfx_buf->dynamicIndexBuffer->used;
+		const auto base_index = buf->dynamicIndexBuffer->used;
 
 		void* buffer_data;
-		if (const auto hr = gfx_buf->dynamicIndexBuffer->buffer->Lock(
-			2 * gfx_buf->dynamicIndexBuffer->used,
+		if (const auto hr = buf->dynamicIndexBuffer->buffer->Lock(
+			2 * buf->dynamicIndexBuffer->used,
 			6 * tri_count, 
 			&buffer_data, 
-			gfx_buf->dynamicIndexBuffer->used != 0 ? 0x1000 : 0x2000);
+			buf->dynamicIndexBuffer->used != 0 ? 0x1000 : 0x2000);
 			hr < 0)
 		{
 			//R_FatalLockError(hr);
@@ -464,17 +464,17 @@ namespace components::sp
 			memcpy(buffer_data, indices, 2 * index_count);
 		}
 
-		gfx_buf->dynamicIndexBuffer->buffer->Unlock();
+		buf->dynamicIndexBuffer->buffer->Unlock();
 
-		if (state->indexBuffer != gfx_buf->dynamicIndexBuffer->buffer)
+		if (state->indexBuffer != buf->dynamicIndexBuffer->buffer)
 		{
-			state->indexBuffer = gfx_buf->dynamicIndexBuffer->buffer;
-			state->device->SetIndices(gfx_buf->dynamicIndexBuffer->buffer);
+			state->indexBuffer = buf->dynamicIndexBuffer->buffer;
+			state->device->SetIndices(buf->dynamicIndexBuffer->buffer);
 		}
 
 		if (buffer_data)
 		{
-			gfx_buf->dynamicIndexBuffer->used += index_count;
+			buf->dynamicIndexBuffer->used += index_count;
 		}
 
 		return base_index;
