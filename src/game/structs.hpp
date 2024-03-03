@@ -1682,6 +1682,54 @@ namespace game
 		GfxVertexBufferState* dynamicVertexBuffer;
 	};
 
+	struct GfxStaticModelDrawStream
+	{
+		const unsigned int* primDrawSurfPos;
+		GfxTexture* reflectionProbeTexture;
+		unsigned int customSamplerFlags;
+		int usingCrossFade;
+		XSurface* localSurf;
+		unsigned int smodelCount;
+		const unsigned __int16* smodelList;
+		unsigned int reflectionProbeIndex;
+		unsigned __int32 viewInfoIndex : 2;
+		unsigned __int32 which_lod : 2;
+		unsigned __int32 pad : 28;
+		void* dynSModelView; // DynSModelClientView
+		void* dynSModelState; // DynSModelGfxState
+	};
+
+	struct GfxModelSurfaceInfo
+	{
+		void* baseMat; // DObjAnimMat
+		char boneIndex;
+		char boneCount;
+		unsigned __int16 gfxEntIndex;
+		unsigned __int16 lightingHandle;
+		char dobjModelIndex;
+	};
+
+	union $35D977DB71E523C40A6AAD0369DD9EE3
+	{
+		GfxPackedVertex* skinnedVert;
+		int oldSkinnedCachedOffset;
+	};
+
+	struct GfxModelSkinnedSurface
+	{
+		int skinnedCachedOffset;
+		XSurface* xsurf;
+		GfxModelSurfaceInfo info;
+		$35D977DB71E523C40A6AAD0369DD9EE3 u;
+	};
+
+
+	struct GfxModelRigidSurface
+	{
+		GfxModelSkinnedSurface surf;
+		GfxScaledPlacement placement;
+	};
+
 #pragma warning(push)
 #pragma warning(disable: 4324)
 	struct __declspec(align(128)) r_global_permanent_t
@@ -1877,6 +1925,26 @@ namespace game
 			float max;
 		} vector;
 	}; STATIC_ASSERT_SIZE(DvarLimits, 0x10);
+
+
+	enum dvar_flags : int
+	{
+		archive = 1 << 0,			// 0x0001
+		userinfo = 1 << 1,			// 0x0002
+		serverinfo = 1 << 2,		// 0x0004
+		systeminfo = 1 << 3,		// 0x0008
+		init_flag = 1 << 4,			// 0x0010
+		latched = 1 << 5,			// 0x0020
+		readonly = 1 << 6,			// 0x0040
+		cheat = 1 << 7,				// 0x0080
+		developer = 1 << 8,			// 0x0100
+		saved = 1 << 9,				// 0x0200
+		no_restart = 1 << 10,		// 0x0400
+		changeable_reset = 1 << 12,	// 0x1000
+		external = 1 << 14,			// 0x4000
+		autoexec = 1 << 15,			// 0x8000
+		unrestricted = 1 << 16,		// 0x10000
+	};
 
 	struct dvar_s
 	{

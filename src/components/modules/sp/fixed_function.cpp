@@ -31,107 +31,107 @@ namespace components::sp
 
 	// *
 	// static models (rigid)
-//
-//	bool XSurfaceOptimize(game::XSurface* surf)
-//	{
-//		const auto dev = game::sp::dx->device;
-//		bool allocated_any = false;
-//
-//		// setup vertexbuffer
-//		{
-//			//XSurfaceOptimizeRigid(model, surf);
-//			if (surf && !surf->vb0 && surf->vertCount)
-//			{
-//				void* vertex_buffer_data = nullptr;
-//				const auto vertex_bytes = surf->vertCount * MODEL_VERTEX_STRIDE;
-//
-//				if (auto hr = dev->CreateVertexBuffer(vertex_bytes, 8, 0, D3DPOOL_DEFAULT, &surf->vb0, nullptr);
-//					hr >= 0)
-//				{
-//					if (hr = surf->vb0->Lock(0, 0, &vertex_buffer_data, 0);
-//						hr >= 0)
-//					{
-//						// we need to unpack normal and texcoords in 'GfxPackedVertex' to be able to use them for fixed-function rendering
-//						for (auto i = 0; i < surf->vertCount; i++)
-//						{
-//							// packed source vertex
-//							const auto src_vert = surf->verts0[i];
-//
-//							// position of our unpacked vert within the vertex buffer
-//							const auto v_pos_in_buffer = i * MODEL_VERTEX_STRIDE;
-//							const auto v = reinterpret_cast<unpacked_model_vert*>(((DWORD)vertex_buffer_data + v_pos_in_buffer));
-//
-//							// assign pos
-//							v->pos[0] = src_vert.xyz[0];
-//							v->pos[1] = src_vert.xyz[1];
-//							v->pos[2] = src_vert.xyz[2];
-//
-//							// unpack normal and texcoords
-//							const auto scale = static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[3])) * (1.0f / 255.0f) + 0.7529412f;
-//							v->normal[0] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[0])) * (1.0f / 127.0f) + -1.0f) * scale;
-//							v->normal[1] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[1])) * (1.0f / 127.0f) + -1.0f) * scale;
-//							v->normal[2] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[2])) * (1.0f / 127.0f) + -1.0f) * scale;
-//
-//							game::sp::Vec2UnpackTexCoords(src_vert.texCoord.packed, v->texcoord);
-//						}
-//
-//						surf->vb0->Unlock();
-//					}
-//					else
-//					{
-//						surf->vb0->Release();
-//						surf->vb0 = nullptr;
-//					}
-//
-//					allocated_any = true;
-//				}
-//			}
-//		}
-//
-//		return allocated_any;
-//	}
-//
-//	__declspec(naked) void XSurfaceOptimizeRigid_stub()
-//	{
-//		const static uint32_t retn_addr = 0x72EF61;
-//		__asm
-//		{
-//			pushad;
-//			push	edi; // xsurf
-//			call	XSurfaceOptimize;
-//			add		esp, 4;
-//			popad;
-//
-//			jmp		retn_addr;
-//		}
-//	}
-//
-//	int XModelGetSurfaces(const game::XModel* model, game::XSurface** surfaces, const int submodel)
-//	{
-//		*surfaces = &model->surfs[model->lodInfo[submodel].surfIndex];
-//		return model->lodInfo[submodel].numsurfs;
-//	}
-//
-//	void XModelOptimize(const game::XModel* model)
-//	{
-//		game::XSurface* surfaces;
-//
-//		const auto lod_count = model->numLods;
-//		for (auto lod_index = 0; lod_index < lod_count; ++lod_index)
-//		{
-//			const auto surf_count = XModelGetSurfaces(model, &surfaces, lod_index);
-//			for (auto surf_index = 0; surf_index < surf_count; ++surf_index)
-//			{
-//				if (XSurfaceOptimize(&surfaces[surf_index]))
-//				{
-//#ifdef DEBUG
-//					game::sp::Com_PrintMessage(0, utils::va("Allocated buffers for smodel '%s'\n", model->name), 0);
-//#endif
-//				}
-//			}
-//		}
-//	}
-//
+
+	bool XSurfaceOptimize(game::XSurface* surf)
+	{
+		const auto dev = game::sp::dx->device;
+		bool allocated_any = false;
+
+		// setup vertexbuffer
+		{
+			//XSurfaceOptimizeRigid(model, surf);
+			if (surf && !surf->vb0 && surf->vertCount)
+			{
+				void* vertex_buffer_data = nullptr;
+				const auto vertex_bytes = surf->vertCount * MODEL_VERTEX_STRIDE;
+
+				if (auto hr = dev->CreateVertexBuffer(vertex_bytes, 8, 0, D3DPOOL_DEFAULT, &surf->vb0, nullptr);
+					hr >= 0)
+				{
+					if (hr = surf->vb0->Lock(0, 0, &vertex_buffer_data, 0);
+						hr >= 0)
+					{
+						// we need to unpack normal and texcoords in 'GfxPackedVertex' to be able to use them for fixed-function rendering
+						for (auto i = 0; i < surf->vertCount; i++)
+						{
+							// packed source vertex
+							const auto src_vert = surf->verts0[i];
+
+							// position of our unpacked vert within the vertex buffer
+							const auto v_pos_in_buffer = i * MODEL_VERTEX_STRIDE;
+							const auto v = reinterpret_cast<unpacked_model_vert*>(((DWORD)vertex_buffer_data + v_pos_in_buffer));
+
+							// assign pos
+							v->pos[0] = src_vert.xyz[0];
+							v->pos[1] = src_vert.xyz[1];
+							v->pos[2] = src_vert.xyz[2];
+
+							// unpack normal and texcoords
+							const auto scale = static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[3])) * (1.0f / 255.0f) + 0.7529412f;
+							v->normal[0] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[0])) * (1.0f / 127.0f) + -1.0f) * scale;
+							v->normal[1] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[1])) * (1.0f / 127.0f) + -1.0f) * scale;
+							v->normal[2] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[2])) * (1.0f / 127.0f) + -1.0f) * scale;
+
+							game::sp::Vec2UnpackTexCoords(src_vert.texCoord.packed, v->texcoord);
+						}
+
+						surf->vb0->Unlock();
+					}
+					else
+					{
+						surf->vb0->Release();
+						surf->vb0 = nullptr;
+					}
+
+					allocated_any = true;
+				}
+			}
+		}
+
+		return allocated_any;
+	}
+
+	__declspec(naked) void XSurfaceOptimizeRigid_stub()
+	{
+		const static uint32_t retn_addr = 0x727D2F;
+		__asm
+		{
+			pushad;
+			push	edi; // xsurf
+			call	XSurfaceOptimize;
+			add		esp, 4;
+			popad;
+
+			jmp		retn_addr;
+		}
+	}
+
+	int XModelGetSurfaces(const game::XModel* model, game::XSurface** surfaces, const int submodel)
+	{
+		*surfaces = &model->surfs[model->lodInfo[submodel].surfIndex];
+		return model->lodInfo[submodel].numsurfs;
+	}
+
+	void XModelOptimize(const game::XModel* model)
+	{
+		game::XSurface* surfaces;
+
+		const auto lod_count = model->numLods;
+		for (auto lod_index = 0; lod_index < lod_count; ++lod_index)
+		{
+			const auto surf_count = XModelGetSurfaces(model, &surfaces, lod_index);
+			for (auto surf_index = 0; surf_index < surf_count; ++surf_index)
+			{
+				if (XSurfaceOptimize(&surfaces[surf_index]))
+				{
+#ifdef DEBUG
+					game::sp::Com_PrintMessage(0, utils::va("Allocated buffers for smodel '%s'\n", model->name), 0);
+#endif
+				}
+			}
+		}
+	}
+
 //	/**
 //	 * @brief builds a world matrix for the mesh
 //	 */
@@ -160,256 +160,277 @@ namespace components::sp
 //		src->matrices.matrix[0].m[3][2] = inst->placement.origin[2];
 //		src->matrices.matrix[0].m[3][3] = 1.0f;
 //	}
-//
-//	/**
-//	 * @brief completely rewritten R_DrawStaticModelDrawSurfNonOptimized to render static models using the fixed-function pipeline
-//	 */
-//	void R_DrawStaticModelDrawSurfNonOptimized(const game::GfxStaticModelDrawStream* drawstream, game::GfxCmdBufSourceState* src, game::GfxCmdBufState* cmd)
-//	{
-//		const auto smodel_count = drawstream->smodelCount;
-//		const auto smodel_list = (const game::GfxStaticModelDrawStream*) reinterpret_cast<const void*>(drawstream->smodelList);
-//		const auto draw_inst = game::sp::rgp->world->dpvs.smodelDrawInsts;
-//		const auto dev = game::sp::dx->device;
-//
-//		// create buffers for all surfaces of the model (including LODs)
-//		// ^ already done on map load (when 'rtx_warm_smodels' is enabled) but this also covers dynamically spawned models
-//		for (auto index = 0u; index < smodel_count; index++)
-//		{
-//			const auto inst = &draw_inst[*((std::uint16_t*)&smodel_list->primDrawSurfPos + index)];
-//			XModelOptimize(inst->model);
-//		}
-//
-//		// #
-//		// set streams
-//
-//		// index and vertex buffers are within the fastfile that includes the model
-//		//const auto mem = &game::g_zones[static_cast<std::int8_t>(drawstream->localSurf->zoneHandle)].mem;
-//
-//		// index buffer
-//		if (cmd->prim.indexBuffer != drawstream->localSurf->indexBuffer)
-//		{
-//			cmd->prim.indexBuffer = drawstream->localSurf->indexBuffer;
-//			dev->SetIndices(drawstream->localSurf->indexBuffer);
-//		}
-//
-//		// custom vertexbuffer
-//		if (drawstream->localSurf->vb0)
-//		{
-//			cmd->prim.streams[0].vb = drawstream->localSurf->vb0;
-//			cmd->prim.streams[0].offset = 0;
-//			cmd->prim.streams[0].stride = MODEL_VERTEX_STRIDE;
-//			dev->SetStreamSource(0, drawstream->localSurf->vb0, 0, MODEL_VERTEX_STRIDE);
-//		}
-//		else // fallback to shader rendering if there is no custom vertexbuffer
-//		{
-//			__debugbreak();
-//		}
-//
-//		IDirect3DVertexShader9* og_vertex_shader = nullptr;
-//		IDirect3DPixelShader9* og_pixel_shader = nullptr;
-//
-//		{
-//			// vertex format
-//			dev->SetFVF(MODEL_VERTEX_FORMAT);
-//
-//			// save shaders
-//			dev->GetVertexShader(&og_vertex_shader);
-//			dev->GetPixelShader(&og_pixel_shader);
-//
-//			// def. needed or the game will render the mesh using shaders
-//			dev->SetVertexShader(nullptr);
-//			dev->SetPixelShader(nullptr);
-//		}
-//
-//		// #
-//		// draw prim
-//
-//		for (auto index = 0u; index < smodel_count; index++)
-//		{
-//			const auto inst = &draw_inst[*((std::uint16_t*)&smodel_list->primDrawSurfPos + index)];
-//
-//			// transform model into the scene by updating the worldmatrix
-//			//R_DrawStaticModelDrawSurfPlacement(src, inst);
-//
-//			float mtx[4][4] = {};
-//			const auto scale = inst->placement.scale;
-//			mtx[0][0] = inst->placement.axis[0][0] * scale;
-//			mtx[0][1] = inst->placement.axis[0][1] * scale;
-//			mtx[0][2] = inst->placement.axis[0][2] * scale;
-//			mtx[0][3] = 0.0f;
-//
-//			mtx[1][0] = inst->placement.axis[1][0] * scale;
-//			mtx[1][1] = inst->placement.axis[1][1] * scale;
-//			mtx[1][2] = inst->placement.axis[1][2] * scale;
-//			mtx[1][3] = 0.0f;
-//
-//			mtx[2][0] = inst->placement.axis[2][0] * scale;
-//			mtx[2][1] = inst->placement.axis[2][1] * scale;
-//			mtx[2][2] = inst->placement.axis[2][2] * scale;
-//			mtx[2][3] = 0.0f;
-//
-//			mtx[3][0] = inst->placement.origin[0];
-//			mtx[3][1] = inst->placement.origin[1];
-//			mtx[3][2] = inst->placement.origin[2];
-//			mtx[3][3] = 1.0f;
-//
-//			dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
-//
-//			// get indexbuffer offset
-//			const auto offset = 0;
-//
-//			// draw the prim
-//			cmd->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, drawstream->localSurf->vertCount, offset, drawstream->localSurf->triCount);
-//		}
-//
-//		{
-//			// #
-//			// restore everything for following meshes rendered via shaders
-//
-//			// do not restore shaders (fixes a few issues in der rise)
-//			//if (og_vertex_shader) dev->SetVertexShader(og_vertex_shader);
-//			//if (og_pixel_shader) dev->SetPixelShader(og_pixel_shader);
-//
-//			// restore world matrix
-//			//game::sp::R_Set3D(0, src);
-//			dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&src->matrices.matrix[0].m));
-//
-//			dev->SetFVF(NULL);
-//		}
-//	}
-//
-//	// *
-//	// xmodels (rigid/skinned)
-//
-//	void R_DrawXModelRigidModelSurf(game::GfxModelRigidSurface* model, [[maybe_unused]] game::GfxCmdBufSourceState* source, game::GfxCmdBufState* state)
-//	{
-//		const auto dev = game::sp::dx->device;
-//		const auto surf = model->surf.xsurf;
-//
-//		if (surf->deformed)
-//		{
-//			__debugbreak();
-//		}
-//
-//		// build custom vertexbuffer for dynamically spawned models
-//		if (!surf->vb0)
-//		{
-//			if (XSurfaceOptimize(surf) && state->material && state->material->info.name)
-//			{
-//#ifdef DEBUG
-//				game::sp::Com_PrintMessage(0, utils::va("Allocated buffers for smodel using material '%s'\n", state->material->info.name), 0);
-//#endif
-//			}
-//		}
-//
-//		// #
-//		// set streams
-//
-//		// index and vertex buffers are within the fastfile that includes the model
-//		//const auto mem = &game::g_zones[surf->zoneHandle].mem;
-//
-//		state->prim.indexBuffer = surf->indexBuffer;
-//		state->prim.device->SetIndices(surf->indexBuffer);
-//
-//		float custom_scalar = 1.0f;
-//
-//		// skysphere materials need to have sort = sky in assetmanager
-//		if (state->material && state->material->info.sortKey == 5)
-//		{
-//			custom_scalar = 1000.0f;
-//
-//			// disable fog for skysphere
-//			state->prim.device->SetRenderState(D3DRS_FOGENABLE, FALSE);
-//		}
-//
-//		// #
-//		// build world matrix
-//
-//		float model_axis[3][3] = {};
-//		utils::unit_quat_to_axis(model->placement.base.quat, model_axis);
-//
-//		//const auto mtx = source->matrices.matrix[0].m;
-//		float mtx[4][4] = {};
-//		const auto scale = model->placement.scale;
-//
-//		// inlined ikMatrixSet44
-//		mtx[0][0] = model_axis[0][0] * scale * custom_scalar;
-//		mtx[0][1] = model_axis[0][1] * scale * custom_scalar;
-//		mtx[0][2] = model_axis[0][2] * scale * custom_scalar;
-//		mtx[0][3] = 0.0f;
-//
-//		mtx[1][0] = model_axis[1][0] * scale * custom_scalar;
-//		mtx[1][1] = model_axis[1][1] * scale * custom_scalar;
-//		mtx[1][2] = model_axis[1][2] * scale * custom_scalar;
-//		mtx[1][3] = 0.0f;
-//
-//		mtx[2][0] = model_axis[2][0] * scale * custom_scalar;
-//		mtx[2][1] = model_axis[2][1] * scale * custom_scalar;
-//		mtx[2][2] = model_axis[2][2] * scale * custom_scalar;
-//		mtx[2][3] = 0.0f;
-//
-//		mtx[3][0] = model->placement.base.origin[0];
-//		mtx[3][1] = model->placement.base.origin[1];
-//		mtx[3][2] = model->placement.base.origin[2];
-//		mtx[3][3] = 1.0f;
-//
-//		IDirect3DVertexShader9* og_vertex_shader = nullptr;
-//		IDirect3DPixelShader9* og_pixel_shader = nullptr;
-//
-//		if (surf->vb0)
-//		{
-//			// save shaders
-//			dev->GetVertexShader(&og_vertex_shader);
-//			dev->GetPixelShader(&og_pixel_shader);
-//
-//			// def. needed or the game will render the mesh using shaders
-//			dev->SetVertexShader(nullptr);
-//			dev->SetPixelShader(nullptr);
-//
-//			state->prim.streams[0].vb = surf->vb0;
-//			state->prim.streams[0].offset = 0;
-//			state->prim.streams[0].stride = MODEL_VERTEX_STRIDE;
-//			state->prim.device->SetStreamSource(0, surf->vb0, 0, MODEL_VERTEX_STRIDE);
-//
-//			// vertex format
-//			dev->SetFVF(MODEL_VERTEX_FORMAT);
-//
-//			// set world matrix
-//			dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
-//		}
-//		
-//		// #
-//		// draw prim
-//
-//		const auto offset = 0;
-//		state->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, offset, surf->triCount);
-//
-//
-//		// #
-//		// restore everything for following meshes rendered via shaders
-//
-//		{
-//			//if (og_vertex_shader) dev->SetVertexShader(og_vertex_shader);
-//			//if (og_pixel_shader) dev->SetPixelShader(og_pixel_shader);
-//			dev->SetFVF(NULL);
-//			dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&source->matrices.matrix[0].m));
-//		}
-//	}
-//
-//	__declspec(naked) void R_DrawXModelRigidModelSurf1_stub()
-//	{
-//		const static uint32_t retn_addr = 0x74CCB7;
-//		__asm
-//		{
-//			// state pushed
-//			// source pushed
-//			push	eax; // GfxModelRigidSurface
-//			call	R_DrawXModelRigidModelSurf;
-//			add		esp, 4;
-//			jmp		retn_addr;
-//		}
-//	}
-//
+
+	/**
+	 * @brief completely rewritten R_DrawStaticModelDrawSurfNonOptimized to render static models using the fixed-function pipeline
+	 */
+	void R_DrawStaticModelDrawSurfNonOptimized(const game::GfxStaticModelDrawStream* drawstream, game::GfxCmdBufSourceState* src, game::GfxCmdBufState* cmd)
+	{
+		const auto smodel_count = drawstream->smodelCount;
+		const auto smodel_list = (const game::GfxStaticModelDrawStream*) reinterpret_cast<const void*>(drawstream->smodelList);
+		const auto draw_inst = game::sp::rgp->world->dpvs.smodelDrawInsts;
+		const auto dev = game::sp::dx->device;
+
+		// create buffers for all surfaces of the model (including LODs)
+		// ^ already done on map load (when 'rtx_warm_smodels' is enabled) but this also covers dynamically spawned models
+		for (auto index = 0u; index < smodel_count; index++)
+		{
+			const auto inst = &draw_inst[*((std::uint16_t*)&smodel_list->primDrawSurfPos + index)];
+			XModelOptimize(inst->model);
+		}
+
+		// #
+		// set streams
+
+		// index and vertex buffers are within the fastfile that includes the model
+		//const auto mem = &game::g_zones[static_cast<std::int8_t>(drawstream->localSurf->zoneHandle)].mem;
+
+		// index buffer
+		if (cmd->prim.indexBuffer != drawstream->localSurf->indexBuffer)
+		{
+			cmd->prim.indexBuffer = drawstream->localSurf->indexBuffer;
+			dev->SetIndices(drawstream->localSurf->indexBuffer);
+		}
+
+		// custom vertexbuffer
+		if (drawstream->localSurf->vb0)
+		{
+			cmd->prim.streams[0].vb = drawstream->localSurf->vb0;
+			cmd->prim.streams[0].offset = 0;
+			cmd->prim.streams[0].stride = MODEL_VERTEX_STRIDE;
+			dev->SetStreamSource(0, drawstream->localSurf->vb0, 0, MODEL_VERTEX_STRIDE);
+		}
+		else // fallback to shader rendering if there is no custom vertexbuffer
+		{
+			__debugbreak();
+		}
+
+		IDirect3DVertexShader9* og_vertex_shader = nullptr;
+		IDirect3DPixelShader9* og_pixel_shader = nullptr;
+
+		{
+			// vertex format
+			dev->SetFVF(MODEL_VERTEX_FORMAT);
+
+			// save shaders
+			dev->GetVertexShader(&og_vertex_shader);
+			dev->GetPixelShader(&og_pixel_shader);
+
+			// def. needed or the game will render the mesh using shaders
+			dev->SetVertexShader(nullptr);
+			dev->SetPixelShader(nullptr);
+		}
+
+		// #
+		// draw prim
+
+		for (auto index = 0u; index < smodel_count; index++)
+		{
+			const auto inst = &draw_inst[*((std::uint16_t*)&smodel_list->primDrawSurfPos + index)];
+
+			// transform model into the scene by updating the worldmatrix
+			//R_DrawStaticModelDrawSurfPlacement(src, inst);
+
+			float mtx[4][4] = {};
+			const auto scale = inst->placement.scale;
+			mtx[0][0] = inst->placement.axis[0][0] * scale;
+			mtx[0][1] = inst->placement.axis[0][1] * scale;
+			mtx[0][2] = inst->placement.axis[0][2] * scale;
+			mtx[0][3] = 0.0f;
+
+			mtx[1][0] = inst->placement.axis[1][0] * scale;
+			mtx[1][1] = inst->placement.axis[1][1] * scale;
+			mtx[1][2] = inst->placement.axis[1][2] * scale;
+			mtx[1][3] = 0.0f;
+
+			mtx[2][0] = inst->placement.axis[2][0] * scale;
+			mtx[2][1] = inst->placement.axis[2][1] * scale;
+			mtx[2][2] = inst->placement.axis[2][2] * scale;
+			mtx[2][3] = 0.0f;
+
+			mtx[3][0] = inst->placement.origin[0];
+			mtx[3][1] = inst->placement.origin[1];
+			mtx[3][2] = inst->placement.origin[2];
+			mtx[3][3] = 1.0f;
+
+			dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
+
+			// get indexbuffer offset
+			const auto offset = 0;
+
+			// draw the prim
+			cmd->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, drawstream->localSurf->vertCount, offset, drawstream->localSurf->triCount);
+		}
+
+		{
+			// #
+			// restore everything for following meshes rendered via shaders
+
+			// do not restore shaders (fixes a few issues in der rise)
+			//if (og_vertex_shader) dev->SetVertexShader(og_vertex_shader);
+			//if (og_pixel_shader) dev->SetPixelShader(og_pixel_shader);
+
+			// restore world matrix
+			//game::sp::R_Set3D(0, src);
+			dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&src->matrices.matrix[0].m));
+			dev->SetFVF(NULL);
+		}
+	}
+
+	// *
+	// xmodels (rigid/skinned)
+
+	game::GfxModelRigidSurface* saved_gfxmodel = nullptr;
+	__declspec(naked) void save_gfxmodel_for_R_DrawXModelRigidModelSurf()
+	{
+		const static uint32_t retn_addr = 0x74AFCE;
+		__asm
+		{
+			mov		saved_gfxmodel, ecx;
+
+			// og code
+			sub     esp, 0x10;
+			mov     eax, esp;
+			jmp		retn_addr;
+		}
+	}
+
+	void R_DrawXModelRigidModelSurf(game::XSurface* unused_surf [[maybe_unused]], game::GfxCmdBufSourceState* source [[maybe_unused]], game::GfxCmdBufState* state)
+	{
+		if (!saved_gfxmodel)
+		{
+			__debugbreak();
+			return;
+		}
+
+		const auto dev = game::sp::dx->device;
+		const auto surf = saved_gfxmodel->surf.xsurf;
+
+		if ((surf->flags & 0x80))
+		{
+			__debugbreak();
+		}
+
+		// build custom vertexbuffer for dynamically spawned models
+		if (!surf->vb0)
+		{
+			if (XSurfaceOptimize(surf) && state->material && state->material->info.name)
+			{
+#ifdef DEBUG
+				game::sp::Com_PrintMessage(0, utils::va("Allocated buffers for smodel using material '%s'\n", state->material->info.name), 0);
+#endif
+			}
+		}
+
+		// #
+		// set streams
+
+		// index and vertex buffers are within the fastfile that includes the model
+		//const auto mem = &game::g_zones[surf->zoneHandle].mem;
+
+		state->prim.indexBuffer = surf->indexBuffer;
+		state->prim.device->SetIndices(surf->indexBuffer);
+
+		float custom_scalar = 1.0f;
+
+		// skysphere materials need to have sort = sky in assetmanager
+		if (state->material && state->material->info.sortKey == 5)
+		{
+			custom_scalar = 1000.0f;
+
+			// disable fog for skysphere
+			state->prim.device->SetRenderState(D3DRS_FOGENABLE, FALSE);
+		}
+
+		// #
+		// build world matrix
+
+		float model_axis[3][3] = {};
+		utils::unit_quat_to_axis(saved_gfxmodel->placement.base.quat, model_axis);
+
+		//const auto mtx = source->matrices.matrix[0].m;
+		float mtx[4][4] = {};
+		const auto scale = saved_gfxmodel->placement.scale;
+
+		// inlined ikMatrixSet44
+		mtx[0][0] = model_axis[0][0] * scale * custom_scalar;
+		mtx[0][1] = model_axis[0][1] * scale * custom_scalar;
+		mtx[0][2] = model_axis[0][2] * scale * custom_scalar;
+		mtx[0][3] = 0.0f;
+
+		mtx[1][0] = model_axis[1][0] * scale * custom_scalar;
+		mtx[1][1] = model_axis[1][1] * scale * custom_scalar;
+		mtx[1][2] = model_axis[1][2] * scale * custom_scalar;
+		mtx[1][3] = 0.0f;
+
+		mtx[2][0] = model_axis[2][0] * scale * custom_scalar;
+		mtx[2][1] = model_axis[2][1] * scale * custom_scalar;
+		mtx[2][2] = model_axis[2][2] * scale * custom_scalar;
+		mtx[2][3] = 0.0f;
+
+		mtx[3][0] = saved_gfxmodel->placement.base.origin[0];
+		mtx[3][1] = saved_gfxmodel->placement.base.origin[1];
+		mtx[3][2] = saved_gfxmodel->placement.base.origin[2];
+		mtx[3][3] = 1.0f;
+
+		IDirect3DVertexShader9* og_vertex_shader = nullptr;
+		IDirect3DPixelShader9* og_pixel_shader = nullptr;
+
+		if (surf->vb0)
+		{
+			// save shaders
+			dev->GetVertexShader(&og_vertex_shader);
+			dev->GetPixelShader(&og_pixel_shader);
+
+			// def. needed or the game will render the mesh using shaders
+			dev->SetVertexShader(nullptr);
+			dev->SetPixelShader(nullptr);
+
+			state->prim.streams[0].vb = surf->vb0;
+			state->prim.streams[0].offset = 0;
+			state->prim.streams[0].stride = MODEL_VERTEX_STRIDE;
+			state->prim.device->SetStreamSource(0, surf->vb0, 0, MODEL_VERTEX_STRIDE);
+
+			// vertex format
+			dev->SetFVF(MODEL_VERTEX_FORMAT);
+
+			// set world matrix
+			dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
+		}
+		
+		// #
+		// draw prim
+
+		const auto offset = 0;
+		state->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, offset, surf->triCount);
+
+
+		// #
+		// restore everything for following meshes rendered via shaders
+
+		{
+			//if (og_vertex_shader) dev->SetVertexShader(og_vertex_shader);
+			//if (og_pixel_shader) dev->SetPixelShader(og_pixel_shader);
+			dev->SetFVF(NULL);
+			dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&source->matrices.matrix[0].m));
+		}
+	}
+
+	//__declspec(naked) void R_DrawXModelRigidModelSurf1_stub()
+	//{
+	//	const static uint32_t retn_addr = 0x74B0BC;
+	//	__asm
+	//	{
+	//		push	ecx; // GfxModelRigidSurface
+	//		mov     eax, [esp + 0xBC + 4];
+	//		mov     ecx, [esp + 0xB8 + 4];
+	//		push    eax;
+	//		push    ecx;
+	//		call	R_DrawXModelRigidModelSurf;
+	//		jmp		retn_addr;
+	//	}
+	//}
+
 //	__declspec(naked) void R_DrawXModelRigidModelSurf2_stub()
 //	{
 //		const static uint32_t retn_addr = 0x74D069;
@@ -1321,18 +1342,24 @@ namespace components::sp
 	{
 		// force fullbright
 		//utils::hook::nop(0x724AC9, 2); // no decals :[
+
+		// enable fullbright by default
 		utils::hook::set<BYTE>(0x6CA3E0 + 1, 0x1);
 
-		// do not wait for query to check pretess
-		//utils::hook::set<BYTE>(0xB183A9, 0xEB);
-//
-//		// fixed-function rendering of static models (R_TessStaticModelRigidDrawSurfList)
-//		utils::hook(0x74E1F2, R_DrawStaticModelDrawSurfNonOptimized, HOOK_CALL).install()->quick();
-//
-//		// fixed-function rendering of rigid xmodels - call 1 (RB_TessXModelRigidDrawSurfList-> R_DrawXModelSurfCamera-> R_DrawXModelRigidModelSurf1
-//		utils::hook::nop(0x74CC61, 3); // dont overwrite eax with xsurf, wee want GfxModelRigidSurface
-//		utils::hook(0x74CCB2, R_DrawXModelRigidModelSurf1_stub, HOOK_JUMP).install()->quick();
-//
+		// fixed-function rendering of static models (R_TessStaticModelRigidDrawSurfList)
+		utils::hook(0x7495B7, R_DrawStaticModelDrawSurfNonOptimized, HOOK_CALL).install()->quick();
+
+		// fixed-function rendering of rigid xmodels - call 1 (RB_TessXModelRigidDrawSurfList-> R_DrawXModelSurfCamera-> R_DrawXModelRigidModelSurf1
+		
+		//utils::hook(0x74CCB2, R_DrawXModelRigidModelSurf1_stub, HOOK_JUMP).install()->quick();
+		//utils::hook::set<BYTE>(0x74B083, 0xEB); // make sure we never override ecx
+		//utils::hook::nop(0x74B0A6, 7); // we want GfxModelRigidSurface
+		//utils::hook(0x74B0A6, R_DrawXModelRigidModelSurf1_stub, HOOK_JUMP).install()->quick();
+
+		// save GfxModelRigidSurface* for R_DrawXModelRigidModelSurf
+		utils::hook(0x74AFC9, save_gfxmodel_for_R_DrawXModelRigidModelSurf, HOOK_JUMP).install()->quick();
+		utils::hook(0x74B0B7, R_DrawXModelRigidModelSurf, HOOK_CALL).install()->quick();
+
 //		// ^ call 2
 //		utils::hook(0x74D064, R_DrawXModelRigidModelSurf2_stub, HOOK_JUMP).install()->quick();
 //
@@ -1363,8 +1390,8 @@ namespace components::sp
 //
 		// on map load :: build custom buffers for fixed-function rendering
 		utils::hook(0x64FEAD, init_fixed_function_buffers_stub, HOOK_JUMP).install()->quick(); // CG_Init :: CG_NorthDirectionChanged call
-//		utils::hook(0x72EF5C, XSurfaceOptimizeRigid_stub, HOOK_JUMP).install()->quick(); // stock XSurfaceOptimize :: XSurfaceOptimizeRigid call
-//
+		utils::hook(0x727D2A, XSurfaceOptimizeRigid_stub, HOOK_JUMP).install()->quick(); // stock XSurfaceOptimize :: XSurfaceOptimizeRigid call
+
 		// on renderer shutdown :: release custom buffers used by fixed-function rendering
 		utils::hook(0x6B8456, free_fixed_function_buffers_stub, HOOK_JUMP).install()->quick(); // R_Shutdown :: R_ResetModelLighting call
 //

@@ -70,6 +70,8 @@ namespace game
 		//void Cbuf_AddText(const char* text /*eax*/);
 		//void Vec2UnpackTexCoords(unsigned int packed, float* texcoord_out /*ecx*/);
 
+		static utils::function<void __cdecl (unsigned int packed, float* out)> Vec2UnpackTexCoords = 0x5AC8E0;
+
 		//std::int16_t G_ModelIndex(const char* model_name /*eax*/); // ASM
 		//extern bool DB_FileExists(const char* file_name, game::DB_FILE_EXISTS_PATH);
 

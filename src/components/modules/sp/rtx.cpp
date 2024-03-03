@@ -56,6 +56,92 @@ namespace components::sp
 
 	// ------------------------
 
+	void set_dvar_defaults()
+	{
+		if (const auto var = Dvar_FindVar("r_lodScaleRigid"); var)
+		{
+			var->current.value = 1.0f;
+			var->domain.value.min = 0.0f;
+			var->domain.value.max = FLT_MAX;
+			var->flags = game::dvar_flags::userinfo;
+		}
+
+		if (const auto var = Dvar_FindVar("r_lodScaleSkinned"); var)
+		{
+			var->domain.value.min = 0.0f;
+			var->domain.value.max = FLT_MAX;
+			var->flags = game::dvar_flags::userinfo;
+		}
+
+		if (const auto var = Dvar_FindVar("r_skinCache"); var)
+		{
+			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
+		}
+
+		if (const auto var = Dvar_FindVar("r_fastSkin"); var)
+		{
+			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
+		}
+
+		if (const auto var = Dvar_FindVar("r_distortion"); var)
+		{
+			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
+		}
+
+		if (const auto var = Dvar_FindVar("r_depthprepass"); var)
+		{
+			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
+		}
+
+		if (const auto var = Dvar_FindVar("r_smc_enable"); var)
+		{
+			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
+		}
+
+		if (const auto var = Dvar_FindVar("r_pretess"); var)
+		{
+			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
+		}
+
+		if (const auto var = Dvar_FindVar("fx_marks"); var)
+		{
+			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
+		}
+
+		// TODO: r_smp_backend - blocks input - freezes game
+
+		/*if (const auto var = Dvar_FindVar("r_smp_backend"); var)
+		{
+			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
+		}*/
+
+		/*if (const auto var = Dvar_FindVar("r_smp_worker"); var)
+		{
+			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
+		}*/
+
+		if (const auto var = Dvar_FindVar("sv_cheats"); var)
+		{
+			var->current.enabled = true; var->flags = game::dvar_flags::userinfo;
+		}
+	}
+
+	__declspec(naked) void register_dvars_stub()
+	{
+		const static uint32_t stock_func = 0x70B210;
+		const static uint32_t retn_addr = 0x6B833F;
+		__asm
+		{
+			call	stock_func;
+
+			pushad;
+			call	set_dvar_defaults;
+			popad;
+
+			jmp		retn_addr;
+		}
+	}
+
 	// *
 	// load custom fastfile containing required custom assets
 
@@ -169,7 +255,7 @@ namespace components::sp
 		// ------------------------------------------------------------------------
 
 		// stub after 'R_InitGraphicsApi' (NVAPI Entry) to re-register stock dvars
-		//utils::hook(0x6D6B40, register_dvars_stub, HOOK_JUMP).install()->quick();
+		utils::hook(0x6B833A, register_dvars_stub, HOOK_JUMP).install()->quick();
 
 		// ------------------------------------------------------------------------
 
