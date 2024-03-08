@@ -20,6 +20,7 @@ namespace game
 		DxGlobals* dx = reinterpret_cast<DxGlobals*>(0x3963440);
 		//clipMap_t* cm = reinterpret_cast<clipMap_t*>(0x1F41A00);
 		r_global_permanent_t* rgp = reinterpret_cast<r_global_permanent_t*>(0x3966180);
+		GfxCmdBufSourceState* gfxCmdBufSourceState = reinterpret_cast<GfxCmdBufSourceState*>(0x40CA570);
 
 		// GfxWorldDraw* g_worldDraw = reinterpret_cast<GfxWorldDraw*>(0x460C0B0);
 		GfxWorldDraw* get_g_world_draw()

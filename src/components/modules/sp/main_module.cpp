@@ -130,6 +130,145 @@ namespace components::sp
 		*(DWORD*)0x2910160 ^= 1;
 	}
 
+#define DEBUG_WINPROC
+#ifdef DEBUG_WINPROC
+	void print_main_win_proc_msg(std::uint32_t msg)
+	{
+		//if (const auto var = game::sp::Dvar_FindVar("r_smp_backend"); var && !var->current.enabled)
+		{
+			printf("MSG: %d\n", msg);
+		}
+	}
+
+	void __declspec(naked) main_win_proc_stub()
+	{
+		const static uint32_t retn_addr = 0x554B43;
+		__asm
+		{
+			pushad;
+			push	edi; // msg
+			call	print_main_win_proc_msg;
+			add		esp, 4;
+			popad;
+
+			// og code
+			push    ebx;
+			mov     ebx, [esp + 0x50];
+			jmp		retn_addr;
+		}
+	}
+#endif
+
+	void msg_loop()
+	{
+		//const auto hwnd = reinterpret_cast<HWND>(0x27706BC);
+		HWND hwnd = nullptr;
+
+		tagMSG msg = {};
+		while (PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE))
+		{
+			if (!GetMessageA(&msg, hwnd, 0, 0))
+			{
+				// Sys_Quit
+				utils::hook::call<void (__cdecl)()>(0x5DF2B0)();
+			}
+
+			//dword_27706D4 = msg.time;
+			*(DWORD*)0x27706D4 = msg.time;
+
+			TranslateMessage(&msg);
+			DispatchMessageA(&msg);
+		}
+	}
+
+	void __declspec(naked) sys_getevent_stub()
+	{
+		const static uint32_t retn_addr = 0x867C69;
+		__asm
+		{
+			pushad;
+			call	msg_loop;
+			popad;
+
+			jmp		retn_addr;
+		}
+	}
+
+#if DEBUG
+	void print_Sys_QueryD3DDeviceOKEvent(BOOL result)
+	{
+		if (!result)
+		{
+			printf("Sys_QueryD3DDeviceOKEvent :: returned FALSE\n");
+		}
+	}
+
+	void __declspec(naked) Sys_QueryD3DDeviceOKEvent_stub()
+	{
+		__asm
+		{
+			neg     eax;
+			sbb     eax, eax;
+			inc     eax;
+
+			pushad;
+			push	eax;
+			call	print_Sys_QueryD3DDeviceOKEvent;
+			pop		eax;
+			popad;
+
+			retn;
+		}
+	}
+
+	void R_PreTessBspDrawSurfs_check(int count)
+	{
+		if (count + game::sp::gfx_buf->preTessIndexBuffer->used > game::sp::gfx_buf->preTessIndexBuffer->total)
+		{
+			printf("R_PreTessBspDrawSurfs :: Exceeded preTessIndexBuffer usage\n");
+		}
+	}
+
+	void __declspec(naked) R_PreTessBspDrawSurfs_stub()
+	{
+		const static uint32_t retn_addr = 0x72C95D;
+		__asm
+		{
+			add     edx, eax;
+
+			pushad;
+			push	edx; // count
+			call	R_PreTessBspDrawSurfs_check;
+			pop		edx;
+			popad;
+
+			cmp     edx, [ecx + 4];
+			jmp		retn_addr;
+		}
+	}
+#endif
+
+	void fix_r_pretess()
+	{
+		game::sp::gfx_buf->preTessIndexBuffer->used = 0;
+	}
+
+	// fix_r_pretess_stub
+	void __declspec(naked) fix_r_pretess_stub()
+	{
+		const static uint32_t retn_addr = 0x6C70B2;
+		__asm
+		{
+			pushad;
+			call	fix_r_pretess;
+			popad;
+
+			// og
+			mov     edx, [eax + 0x16CBC8];
+			jmp		retn_addr;
+		}
+	}
+
 	// *
 	// Event stubs
 
@@ -137,6 +276,7 @@ namespace components::sp
 	void main_module::on_map_load()
 	{
 		map_settings::get()->set_settings_for_loaded_map();
+		rtx::set_dvar_defaults();
 	}
 
 	// > fixed_function::free_fixed_function_buffers_stub
@@ -144,8 +284,114 @@ namespace components::sp
 	{
 	}
 
+	// TODO:
+	// - call R_SkinXModelCmd (0x745280) directly - cmd placed @ 0x6CA0F2
+	//game::SkinXModelCmd* test = nullptr;
+	__declspec(naked) void add_skin_xmodel_cmd_stub()
+	{
+		const static uint32_t func_addr = 0x745280;
+		const static uint32_t retn_addr = 0x6CA0FA;
+		__asm
+		{
+			// hook replaced one push so we have to sub 4 from esp
+			lea     edx, [esp + 0x74 - 4]; // SkinXModelCmd
+			push    edx;
+			//mov		test, edx;
+
+			// hook replaced one push and we discard another so we have to sub 8 from esp
+			mov[esp + 0x7C - 8], ebx; // all these write to SkinXModelCmd located in edx ^
+			mov[esp + 0xA4 - 8], di;
+			mov[esp + 0x80 - 8], ecx;
+
+			call	func_addr;
+			add		esp, 4;
+			jmp		retn_addr;
+		}
+	}
+
+
+	// - call R_AddAllSceneEntSurfacesCamera (usercall GfxViewInfo *a1@<eax>) (0x6B0B00) - cmd placed @ 0x6C7505
+	//game::GfxViewInfo* view_test = nullptr;
+	__declspec(naked) void add_sceneent_cmd_stub()
+	{
+		const static uint32_t func_addr = 0x6B0B00;
+		const static uint32_t retn_addr = 0x6C750A;
+		__asm
+		{
+			// hook replaced one push so we have to sub 4 from esp
+			mov     eax, ebx; // GfxViewInfo
+			//mov		view_test, eax;
+			call	func_addr;
+			jmp		retn_addr;
+		}
+	}
+
 	main_module::main_module()
 	{
+		// drawing only little on screen = no viewmodel jitter
+		// drawing X more results in jitter
+
+		// call worker cmd's directly without using jq threads
+
+		//utils::hook(0x6CA0D4, add_skin_xmodel_cmd_stub, HOOK_JUMP).install()->quick();
+		//utils::hook(0x659089, 5); // do not wait or flush callback ^
+
+
+		//utils::hook::nop(0x6C74F5, 6);
+		//utils::hook(0x6C74F5, add_sceneent_cmd_stub, HOOK_JUMP).install()->quick();
+		//utils::hook::nop(0x6C7515, 3); // add esp, 0xC
+
+
+		// --
+
+		// not needed
+		//utils::hook::nop(0x6B833F, 10); // disable RB_CalcSunSpriteSamples
+
+#ifdef DEBUG_WINPROC
+		utils::hook(0x554B3E, main_win_proc_stub, HOOK_JUMP).install()->quick();
+#endif
+
+#if DEBUG
+		// not the issue
+		utils::hook(0x4C9A1E, Sys_QueryD3DDeviceOKEvent_stub, HOOK_JUMP).install()->quick();
+
+		// check failing 'if ( count + gfx_buf.preTessIndexBuffer->used > gfx_buf.preTessIndexBuffer->total )' check in R_PreTessBspDrawSurfs
+		utils::hook(0x72C958, R_PreTessBspDrawSurfs_stub, HOOK_JUMP).install()->quick();
+#endif
+
+		// R_GenerateSortedDrawSurfs :: fix r_pretess by setting buffer->used to zero before starting to add stuff to the scene
+		utils::hook::nop(0x6C70AC, 6);
+		utils::hook(0x6C70AC, fix_r_pretess_stub, HOOK_JUMP).install()->quick(); 
+
+		// ^ increase pretess buffers .. not needed but cant hurt ig
+		utils::hook::set<BYTE>(0x70971A + 3, 0x20); // double -> also doubles dyn index and dyn vertex buffers
+		utils::hook::set<BYTE>(0x7098D8 + 3, 0x40); // needs to be double of ^
+		utils::hook::set<BYTE>(0x7095E3 + 3, 0x40); // needs to be double of ^ -> R_InitDynamicIndexBufferState
+
+//#define MOVE_MSG_PUMP
+#ifdef MOVE_MSG_PUMP
+		utils::hook::nop(0x6EB2DE, 29); // RB_SwapBuffers :: nop peek msg
+		utils::hook::set<BYTE>(0x6EB2FB, 0xEB); // RB_SwapBuffers :: skip translate and dispatch msg
+
+		utils::hook::nop(0x6EB2B3, 43); // RB_SwapBuffers :: nop showcursor loop
+
+		utils::hook::nop(0x6EB288, 16); // RB_SwapBuffers :: nop sys_queryrenderevent
+		utils::hook::set<BYTE>(0x6EB298, 0xEB); // ^ skip more
+
+		// impl. msg loop in Sys_GetEvent
+		utils::hook(0x867C5B, sys_getevent_stub, HOOK_JUMP).install()->quick();
+#endif
+
+#if DEBUG
+		// enable OutputDebugString --- oo
+		utils::hook::nop(0x60AE2C, 2);
+#endif
+
+		// not needed?
+		utils::hook::set<BYTE>(0x4E79D0, 0xEB); // use 1 worker thread
+
+
+
 		// game_mod patches by nukem - https://github.com/Nukem9/LinkerMod/blob/development/components/game_mod/dllmain.cpp
 		// only apply if game_mod isn't loaded
 

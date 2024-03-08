@@ -6,7 +6,7 @@ using namespace game::sp;
 
 namespace components::sp
 {
-	void setup_rtx(game::GfxViewParms* view_parms)
+	void rtx::setup_rtx(game::GfxViewParms* view_parms)
 	{
 		const auto dev = dx->device;
 
@@ -44,7 +44,7 @@ namespace components::sp
 		{
 			pushad;
 			push	ebx; // viewParms
-			call	setup_rtx;
+			call	rtx::setup_rtx;
 			add		esp, 4;
 			popad;
 
@@ -56,7 +56,7 @@ namespace components::sp
 
 	// ------------------------
 
-	void set_dvar_defaults()
+	void rtx::set_dvar_defaults()
 	{
 		if (const auto var = Dvar_FindVar("r_lodScaleRigid"); var)
 		{
@@ -98,12 +98,18 @@ namespace components::sp
 			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
 		}
 
-		if (const auto var = Dvar_FindVar("r_pretess"); var)
+		/*if (const auto var = Dvar_FindVar("r_pretess"); var)
+		{
+			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
+		}*/
+
+		if (const auto var = Dvar_FindVar("fx_marks"); var)
 		{
 			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
 		}
 
-		if (const auto var = Dvar_FindVar("fx_marks"); var)
+		// really slowing the game down with FF effects
+		if (const auto var = Dvar_FindVar("fx_drawclouds"); var)
 		{
 			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
 		}
@@ -135,7 +141,7 @@ namespace components::sp
 			call	stock_func;
 
 			pushad;
-			call	set_dvar_defaults;
+			call	rtx::set_dvar_defaults;
 			popad;
 
 			jmp		retn_addr;

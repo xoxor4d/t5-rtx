@@ -1,5 +1,7 @@
 #include "std_include.hpp"
 
+#define USE_NEW_FX_SYS 0
+
 using namespace game::sp;
 
 namespace components::sp
@@ -28,6 +30,9 @@ namespace components::sp
 	constexpr auto WORLD_VERTEX_FORMAT = (D3DFVF_XYZ | D3DFVF_NORMAL | D3DFVF_DIFFUSE | D3DFVF_TEX1);
 	IDirect3DVertexBuffer9* gfx_world_vertexbuffer = nullptr;
 
+	// #
+
+	static IDirect3DVertexBuffer9* dynamic_codemesh_vb = nullptr;
 
 	// *
 	// static models (rigid)
@@ -132,39 +137,10 @@ namespace components::sp
 		}
 	}
 
-//	/**
-//	 * @brief builds a world matrix for the mesh
-//	 */
-//	void R_DrawStaticModelDrawSurfPlacement(game::GfxCmdBufSourceState* src, const game::GfxStaticModelDrawInst* inst)
-//	{
-//		const auto scale = inst->placement.scale;
-//
-//		// inlined ikMatrixSet44
-//		src->matrices.matrix[0].m[0][0] = inst->placement.axis[0][0] * scale;
-//		src->matrices.matrix[0].m[0][1] = inst->placement.axis[0][1] * scale;
-//		src->matrices.matrix[0].m[0][2] = inst->placement.axis[0][2] * scale;
-//		src->matrices.matrix[0].m[0][3] = 0.0f;
-//
-//		src->matrices.matrix[0].m[1][0] = inst->placement.axis[1][0] * scale;
-//		src->matrices.matrix[0].m[1][1] = inst->placement.axis[1][1] * scale;
-//		src->matrices.matrix[0].m[1][2] = inst->placement.axis[1][2] * scale;
-//		src->matrices.matrix[0].m[1][3] = 0.0f;
-//
-//		src->matrices.matrix[0].m[2][0] = inst->placement.axis[2][0] * scale;
-//		src->matrices.matrix[0].m[2][1] = inst->placement.axis[2][1] * scale;
-//		src->matrices.matrix[0].m[2][2] = inst->placement.axis[2][2] * scale;
-//		src->matrices.matrix[0].m[2][3] = 0.0f;
-//
-//		src->matrices.matrix[0].m[3][0] = inst->placement.origin[0];
-//		src->matrices.matrix[0].m[3][1] = inst->placement.origin[1];
-//		src->matrices.matrix[0].m[3][2] = inst->placement.origin[2];
-//		src->matrices.matrix[0].m[3][3] = 1.0f;
-//	}
-
 	/**
 	 * @brief completely rewritten R_DrawStaticModelDrawSurfNonOptimized to render static models using the fixed-function pipeline
 	 */
-	void R_DrawStaticModelDrawSurfNonOptimized(const game::GfxStaticModelDrawStream* drawstream, game::GfxCmdBufSourceState* src, game::GfxCmdBufState* cmd)
+	void R_DrawStaticModelDrawSurfNonOptimized(const game::GfxStaticModelDrawStream* drawstream, [[maybe_unused]] game::GfxCmdBufSourceState* src, game::GfxCmdBufState* cmd)
 	{
 		const auto smodel_count = drawstream->smodelCount;
 		const auto smodel_list = (const game::GfxStaticModelDrawStream*) reinterpret_cast<const void*>(drawstream->smodelList);
@@ -181,9 +157,6 @@ namespace components::sp
 
 		// #
 		// set streams
-
-		// index and vertex buffers are within the fastfile that includes the model
-		//const auto mem = &game::g_zones[static_cast<std::int8_t>(drawstream->localSurf->zoneHandle)].mem;
 
 		// index buffer
 		if (cmd->prim.indexBuffer != drawstream->localSurf->indexBuffer)
@@ -205,21 +178,12 @@ namespace components::sp
 			__debugbreak();
 		}
 
-		IDirect3DVertexShader9* og_vertex_shader = nullptr;
-		IDirect3DPixelShader9* og_pixel_shader = nullptr;
+		// vertex format
+		dev->SetFVF(MODEL_VERTEX_FORMAT);
 
-		{
-			// vertex format
-			dev->SetFVF(MODEL_VERTEX_FORMAT);
-
-			// save shaders
-			dev->GetVertexShader(&og_vertex_shader);
-			dev->GetPixelShader(&og_pixel_shader);
-
-			// def. needed or the game will render the mesh using shaders
-			dev->SetVertexShader(nullptr);
-			dev->SetPixelShader(nullptr);
-		}
+		// def. needed or the game will render the mesh using shaders
+		dev->SetVertexShader(nullptr);
+		dev->SetPixelShader(nullptr);
 
 		// #
 		// draw prim
@@ -262,19 +226,7 @@ namespace components::sp
 			cmd->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, drawstream->localSurf->vertCount, offset, drawstream->localSurf->triCount);
 		}
 
-		{
-			// #
-			// restore everything for following meshes rendered via shaders
-
-			// do not restore shaders (fixes a few issues in der rise)
-			//if (og_vertex_shader) dev->SetVertexShader(og_vertex_shader);
-			//if (og_pixel_shader) dev->SetPixelShader(og_pixel_shader);
-
-			// restore world matrix
-			//game::sp::R_Set3D(0, src);
-			dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&src->matrices.matrix[0].m));
-			dev->SetFVF(NULL);
-		}
+		dev->SetFVF(NULL);
 	}
 
 	// *
@@ -325,9 +277,6 @@ namespace components::sp
 		// #
 		// set streams
 
-		// index and vertex buffers are within the fastfile that includes the model
-		//const auto mem = &game::g_zones[surf->zoneHandle].mem;
-
 		state->prim.indexBuffer = surf->indexBuffer;
 		state->prim.device->SetIndices(surf->indexBuffer);
 
@@ -373,15 +322,8 @@ namespace components::sp
 		mtx[3][2] = saved_gfxmodel->placement.base.origin[2];
 		mtx[3][3] = 1.0f;
 
-		IDirect3DVertexShader9* og_vertex_shader = nullptr;
-		IDirect3DPixelShader9* og_pixel_shader = nullptr;
-
 		if (surf->vb0)
 		{
-			// save shaders
-			dev->GetVertexShader(&og_vertex_shader);
-			dev->GetPixelShader(&og_pixel_shader);
-
 			// def. needed or the game will render the mesh using shaders
 			dev->SetVertexShader(nullptr);
 			dev->SetPixelShader(nullptr);
@@ -403,55 +345,13 @@ namespace components::sp
 
 		const auto offset = 0;
 		state->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, offset, surf->triCount);
-
-
-		// #
-		// restore everything for following meshes rendered via shaders
-
-		{
-			//if (og_vertex_shader) dev->SetVertexShader(og_vertex_shader);
-			//if (og_pixel_shader) dev->SetPixelShader(og_pixel_shader);
-			dev->SetFVF(NULL);
-			dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&source->matrices.matrix[0].m));
-		}
+		dev->SetFVF(NULL);
 	}
 
-	//__declspec(naked) void R_DrawXModelRigidModelSurf1_stub()
-	//{
-	//	const static uint32_t retn_addr = 0x74B0BC;
-	//	__asm
-	//	{
-	//		push	ecx; // GfxModelRigidSurface
-	//		mov     eax, [esp + 0xBC + 4];
-	//		mov     ecx, [esp + 0xB8 + 4];
-	//		push    eax;
-	//		push    ecx;
-	//		call	R_DrawXModelRigidModelSurf;
-	//		jmp		retn_addr;
-	//	}
-	//}
-
-//	__declspec(naked) void R_DrawXModelRigidModelSurf2_stub()
-//	{
-//		const static uint32_t retn_addr = 0x74D069;
-//		__asm
-//		{
-//			// state pushed
-//			// source pushed
-//			push	ecx; // GfxModelRigidSurface
-//			call	R_DrawXModelRigidModelSurf;
-//			add		esp, 4;
-//			jmp		retn_addr;
-//		}
-//	}
-//
 	// ------------------------
 
 	int R_SetIndexData(game::GfxCmdBufPrimState* state, const unsigned __int16* indices, int tri_count)
 	{
-		//const auto dynamicIndexBufferPool = reinterpret_cast<game::GfxIndexBufferState*>(0x4170718);
-		//auto dynamicIndexBuffer = reinterpret_cast<game::GfxIndexBufferState*>(0x4170728);
-
 		const auto buf = game::sp::gfx_buf;
 		const auto index_count = 3 * tri_count;
 
@@ -501,150 +401,134 @@ namespace components::sp
 		return base_index;
 	}
 
-//	void R_DrawXModelSkinnedUncached(game::GfxModelSkinnedSurface* skinned_surf, game::GfxCmdBufSourceState* src, game::GfxCmdBufState* state)
-//	{
-//		// fixed function rendering
-//
-//		const auto surf = skinned_surf->xsurf;
-//		const auto start_index = R_SetIndexData(&state->prim, surf->triIndices, surf->triCount);
-//
-//		if ((int)(MODEL_VERTEX_STRIDE * surf->vertCount + game::sp::gfx_buf->dynamicVertexBuffer->used) > game::sp::gfx_buf->dynamicVertexBuffer->total)
-//		{
-//			game::sp::gfx_buf->dynamicVertexBuffer->used = 0;
-//		}
-//
-//		// R_SetVertexData
-//		void* buffer_data;
-//		if (const auto hr = game::sp::gfx_buf->dynamicVertexBuffer->buffer->Lock(game::sp::gfx_buf->dynamicVertexBuffer->used, MODEL_VERTEX_STRIDE * surf->vertCount, &buffer_data, game::sp::gfx_buf->dynamicVertexBuffer->used != 0 ? 0x1000 : 0x2000);
-//			hr < 0)
-//		{
-//			//R_FatalLockError(hr);
-//			game::sp::Com_Error(0, "Fatal lock error :: R_DrawXModelSkinnedUncached");
-//		}
-//
-//		{
-//			for (auto i = 0u; i < surf->vertCount; i++)
-//			{
-//				// packed source vertex
-//				const auto src_vert = skinned_surf->u.skinnedVert[i];
-//
-//				// position of our unpacked vert within the vertex buffer
-//				const auto v_pos_in_buffer = i * MODEL_VERTEX_STRIDE;
-//				const auto v = reinterpret_cast<unpacked_model_vert*>(((DWORD)buffer_data + v_pos_in_buffer));
-//
-//				// vert pos
-//				v->pos[0] = src_vert.xyz[0];
-//				v->pos[1] = src_vert.xyz[1];
-//				v->pos[2] = src_vert.xyz[2];
-//
-//				// unpack and assign vert normal
-//
-//				// normal unpacking in a cod4 hlsl shader:
-//				// temp0	 = i.normal * float4(0.007874016, 0.007874016, 0.007874016, 0.003921569) + float4(-1, -1, -1, 0.7529412);
-//				// temp0.xyz = temp0.www * temp0;
-//
-//				const auto scale = static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[3])) * (1.0f / 255.0f) + 0.7529412f;
-//				v->normal[0] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[0])) * (1.0f / 127.0f) + -1.0f) * scale;
-//				v->normal[1] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[1])) * (1.0f / 127.0f) + -1.0f) * scale;
-//				v->normal[2] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[2])) * (1.0f / 127.0f) + -1.0f) * scale;
-//
-//				// uv's
-//				game::sp::Vec2UnpackTexCoords(src_vert.texCoord.packed, v->texcoord);
-//			}
-//
-//		}
-//
-//		game::sp::gfx_buf->dynamicVertexBuffer->buffer->Unlock();
-//		const std::uint32_t vert_offset = game::sp::gfx_buf->dynamicVertexBuffer->used;
-//		game::sp::gfx_buf->dynamicVertexBuffer->used += (MODEL_VERTEX_STRIDE * surf->vertCount);
-//
-//
-//		// #
-//		// #
-//
-//		if (state->prim.streams[0].vb != game::sp::gfx_buf->dynamicVertexBuffer->buffer || state->prim.streams[0].offset != vert_offset || state->prim.streams[0].stride != MODEL_VERTEX_STRIDE)
-//		{
-//			state->prim.streams[0].vb = game::sp::gfx_buf->dynamicVertexBuffer->buffer;
-//			state->prim.streams[0].offset = vert_offset;
-//			state->prim.streams[0].stride = MODEL_VERTEX_STRIDE;
-//			state->prim.device->SetStreamSource(0, game::sp::gfx_buf->dynamicVertexBuffer->buffer, vert_offset, MODEL_VERTEX_STRIDE);
-//		}
-//
-//		IDirect3DVertexShader9* og_vertex_shader;
-//		IDirect3DPixelShader9* og_pixel_shader;
-//
-//		{
-//			// save shaders
-//			state->prim.device->GetVertexShader(&og_vertex_shader);
-//			state->prim.device->GetPixelShader(&og_pixel_shader);
-//
-//			// needed or game renders mesh with shaders
-//			state->prim.device->SetVertexShader(nullptr);
-//			state->prim.device->SetPixelShader(nullptr);
-//
-//			// vertex format
-//			state->prim.device->SetFVF(MODEL_VERTEX_FORMAT);
-//
-//
-//			// #
-//			// build world matrix
-//
-//			float model_axis[3][3] = {};
-//			utils::unit_quat_to_axis(src->skinnedPlacement.base.quat, model_axis);
-//
-//			//const auto mtx = source->matrices.matrix[0].m;
-//			float mtx[4][4] = {};
-//			const auto scale = src->skinnedPlacement.scale;
-//
-//			// inlined ikMatrixSet44
-//			mtx[0][0] = model_axis[0][0] * scale;
-//			mtx[0][1] = model_axis[0][1] * scale;
-//			mtx[0][2] = model_axis[0][2] * scale;
-//			mtx[0][3] = 0.0f;
-//
-//			mtx[1][0] = model_axis[1][0] * scale;
-//			mtx[1][1] = model_axis[1][1] * scale;
-//			mtx[1][2] = model_axis[1][2] * scale;
-//			mtx[1][3] = 0.0f;
-//
-//			mtx[2][0] = model_axis[2][0] * scale;
-//			mtx[2][1] = model_axis[2][1] * scale;
-//			mtx[2][2] = model_axis[2][2] * scale;
-//			mtx[2][3] = 0.0f;
-//
-//			mtx[3][0] = src->skinnedPlacement.base.origin[0];
-//			mtx[3][1] = src->skinnedPlacement.base.origin[1];
-//			mtx[3][2] = src->skinnedPlacement.base.origin[2];
-//			mtx[3][3] = 1.0f;
-//
-//			// set world matrix
-//			state->prim.device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
-//		}
-//
-//		state->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, start_index, surf->triCount);
-//
-//		{
-//			state->prim.device->SetFVF(NULL);
-//			//state->prim.device->SetVertexShader(og_vertex_shader);
-//			//state->prim.device->SetPixelShader(og_pixel_shader);
-//			state->prim.device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&src->matrices.matrix[0].m));
-//		}
-//	}
-//
-//	__declspec(naked) void R_DrawXModelSkinnedUncached_stub()
-//	{
-//		const static uint32_t retn_addr = 0x73F195;
-//		__asm
-//		{
-//			// GfxPackedVertex (skinnedVert) pushed (we ignore that because we push GfxModelSkinnedSurface which holds it)
-//			// state pushed
-//			// source pushed
-//			push	edi; // GfxModelSkinnedSurface
-//			call	R_DrawXModelSkinnedUncached;
-//			add		esp, 4;
-//			jmp		retn_addr;
-//		}
-//	}
+	void R_DrawXModelSkinnedUncached(game::GfxModelSkinnedSurface* skinned_surf, game::GfxCmdBufSourceState* src, game::GfxCmdBufState* state)
+	{
+		// fixed function rendering
+
+		const auto surf = skinned_surf->xsurf;
+		const auto start_index = R_SetIndexData(&state->prim, surf->triIndices, surf->triCount);
+
+		if ((int)(MODEL_VERTEX_STRIDE * surf->vertCount + game::sp::gfx_buf->dynamicVertexBuffer->used) > game::sp::gfx_buf->dynamicVertexBuffer->total)
+		{
+			game::sp::gfx_buf->dynamicVertexBuffer->used = 0;
+		}
+
+		// R_SetVertexData
+		void* buffer_data;
+		if (const auto hr = game::sp::gfx_buf->dynamicVertexBuffer->buffer->Lock(game::sp::gfx_buf->dynamicVertexBuffer->used, MODEL_VERTEX_STRIDE * surf->vertCount, &buffer_data, game::sp::gfx_buf->dynamicVertexBuffer->used != 0 ? 0x1000 : 0x2000);
+			hr < 0)
+		{
+			//R_FatalLockError(hr);
+			//game::sp::Com_Error(0, "Fatal lock error :: R_DrawXModelSkinnedUncached");
+			__debugbreak();
+		}
+
+		{
+			for (auto i = 0u; i < surf->vertCount; i++)
+			{
+				// packed source vertex
+				const auto src_vert = skinned_surf->u.skinnedVert[i];
+
+				// position of our unpacked vert within the vertex buffer
+				const auto v_pos_in_buffer = i * MODEL_VERTEX_STRIDE;
+				const auto v = reinterpret_cast<unpacked_model_vert*>(((DWORD)buffer_data + v_pos_in_buffer));
+
+				// vert pos
+				v->pos[0] = src_vert.xyz[0];
+				v->pos[1] = src_vert.xyz[1];
+				v->pos[2] = src_vert.xyz[2];
+
+				// unpack and assign vert normal
+
+				// normal unpacking in a cod4 hlsl shader:
+				// temp0	 = i.normal * float4(0.007874016, 0.007874016, 0.007874016, 0.003921569) + float4(-1, -1, -1, 0.7529412);
+				// temp0.xyz = temp0.www * temp0;
+
+				const auto scale = static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[3])) * (1.0f / 255.0f) + 0.7529412f;
+				v->normal[0] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[0])) * (1.0f / 127.0f) + -1.0f) * scale;
+				v->normal[1] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[1])) * (1.0f / 127.0f) + -1.0f) * scale;
+				v->normal[2] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[2])) * (1.0f / 127.0f) + -1.0f) * scale;
+
+				// uv's
+				game::sp::Vec2UnpackTexCoords(src_vert.texCoord.packed, v->texcoord);
+			}
+
+		}
+
+		game::sp::gfx_buf->dynamicVertexBuffer->buffer->Unlock();
+		const std::uint32_t vert_offset = game::sp::gfx_buf->dynamicVertexBuffer->used;
+		game::sp::gfx_buf->dynamicVertexBuffer->used += (MODEL_VERTEX_STRIDE * surf->vertCount);
+
+
+		// #
+		// #
+
+		if (state->prim.streams[0].vb != game::sp::gfx_buf->dynamicVertexBuffer->buffer || state->prim.streams[0].offset != vert_offset || state->prim.streams[0].stride != MODEL_VERTEX_STRIDE)
+		{
+			state->prim.streams[0].vb = game::sp::gfx_buf->dynamicVertexBuffer->buffer;
+			state->prim.streams[0].offset = vert_offset;
+			state->prim.streams[0].stride = MODEL_VERTEX_STRIDE;
+			state->prim.device->SetStreamSource(0, game::sp::gfx_buf->dynamicVertexBuffer->buffer, vert_offset, MODEL_VERTEX_STRIDE);
+		}
+
+		// needed or game renders mesh with shaders
+		state->prim.device->SetVertexShader(nullptr);
+		state->prim.device->SetPixelShader(nullptr);
+
+		// vertex format
+		state->prim.device->SetFVF(MODEL_VERTEX_FORMAT);
+
+
+		// #
+		// build world matrix
+
+		float model_axis[3][3] = {};
+		utils::unit_quat_to_axis(src->skinnedPlacement.base.quat, model_axis);
+
+		//const auto mtx = source->matrices.matrix[0].m;
+		float mtx[4][4] = {};
+		const auto scale = src->skinnedPlacement.scale;
+
+		// inlined ikMatrixSet44
+		mtx[0][0] = model_axis[0][0] * scale;
+		mtx[0][1] = model_axis[0][1] * scale;
+		mtx[0][2] = model_axis[0][2] * scale;
+		mtx[0][3] = 0.0f;
+
+		mtx[1][0] = model_axis[1][0] * scale;
+		mtx[1][1] = model_axis[1][1] * scale;
+		mtx[1][2] = model_axis[1][2] * scale;
+		mtx[1][3] = 0.0f;
+
+		mtx[2][0] = model_axis[2][0] * scale;
+		mtx[2][1] = model_axis[2][1] * scale;
+		mtx[2][2] = model_axis[2][2] * scale;
+		mtx[2][3] = 0.0f;
+
+		mtx[3][0] = src->skinnedPlacement.base.origin[0];
+		mtx[3][1] = src->skinnedPlacement.base.origin[1];
+		mtx[3][2] = src->skinnedPlacement.base.origin[2];
+		mtx[3][3] = 1.0f;
+
+		// set world matrix
+		state->prim.device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
+		state->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, start_index, surf->triCount);
+		state->prim.device->SetFVF(NULL);
+	}
+
+	__declspec(naked) void R_DrawXModelSkinnedUncached_stub()
+	{
+		const static uint32_t retn_addr = 0x73C988;
+		__asm
+		{
+			push    edi; // state
+			push    ebx; // source
+			push	esi; // GfxModelSkinnedSurface
+			call	R_DrawXModelSkinnedUncached;
+			add		esp, 12;
+			jmp		retn_addr;
+		}
+	}
 
 	// *
 	// world (bsp/terrain) drawing
@@ -707,15 +591,7 @@ namespace components::sp
 		// #
 		// setup fixed-function
 
-		// vertex format
 		dev->SetFVF(WORLD_VERTEX_FORMAT);
-
-		// save shaders
-		IDirect3DVertexShader9* og_vertex_shader;
-		dev->GetVertexShader(&og_vertex_shader);
-
-		IDirect3DPixelShader9* og_pixel_shader;
-		dev->GetPixelShader(&og_pixel_shader);
 
 		// def. needed or the game will render the mesh using shaders
 		dev->SetVertexShader(nullptr);
@@ -769,10 +645,7 @@ namespace components::sp
 		// #
 		// restore everything for following meshes rendered via shaders
 
-		//dev->SetVertexShader(og_vertex_shader);
-		//dev->SetPixelShader(og_pixel_shader);
 		dev->SetFVF(NULL);
-		dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&src->matrices.matrix[0].m));
 	}
 
 	// *
@@ -816,16 +689,7 @@ namespace components::sp
 
 		// #
 		// setup fixed-function
-
-		// vertex format
 		dev->SetFVF(WORLD_VERTEX_FORMAT);
-
-		// save shaders
-		IDirect3DVertexShader9* og_vertex_shader;
-		dev->GetVertexShader(&og_vertex_shader);
-
-		IDirect3DPixelShader9* og_pixel_shader;
-		dev->GetPixelShader(&og_pixel_shader);
 
 		// def. needed or the game will render the mesh using shaders
 		dev->SetVertexShader(nullptr);
@@ -872,330 +736,301 @@ namespace components::sp
 
 		if (prev_tris)
 		{
-			//const auto base = R_SetIndexData(state, &game::sp::rgp->world->draw.indices[prev_tris->baseIndex], tri_count);
 			const auto base = R_SetIndexData(state, &game::sp::get_g_world_draw()->indices[prev_tris->baseIndex], tri_count);
 			R_DrawBspTris(state, prev_tris, base, tri_count);
 		}
 
-		// #
-		// restore everything for following meshes rendered via shaders
-
-		dev->SetVertexShader(og_vertex_shader);
-		dev->SetPixelShader(og_pixel_shader);
-
-		// restore world matrix
-		//rtx::r_set_3d();
-		//dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&game::gfxCmdBufSourceState->matrices.matrix[0].m));
 		dev->SetFVF(NULL);
 	}
 
-//	/**
-//	 * @brief completely rewritten R_TessBModel to render brushmodels using the fixed-function pipeline
-//	 * - most challenging issue yet
-//	 */
-//	std::uint32_t R_TessBModel(game::GfxDrawSurfListArgs* listArgs, [[maybe_unused]] void* x, [[maybe_unused]] void* y)
-//	{
-//		const auto source = listArgs->context.source;
-//		const auto prim = &listArgs->context.state->prim;
-//
-//		// #
-//		// setup fixed-function
-//
-//		// vertex format
-//		prim->device->SetFVF(WORLD_VERTEX_FORMAT);
-//
-//		// save shaders
-//		IDirect3DVertexShader9* og_vertex_shader;
-//		prim->device->GetVertexShader(&og_vertex_shader);
-//
-//		IDirect3DPixelShader9* og_pixel_shader;
-//		prim->device->GetPixelShader(&og_pixel_shader);
-//
-//		// def. needed or the game will render the mesh using shaders
-//		prim->device->SetVertexShader(nullptr);
-//		prim->device->SetPixelShader(nullptr);
-//
-//		// texture alpha + vertex alpha (decal blending)
-//		prim->device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-//		prim->device->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-//		prim->device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
-//
-//
-//		// #
-//		// draw prims
-//
-//		const auto draw_surf_list = &listArgs->info->drawSurfs[listArgs->firstDrawSurfIndex];
-//		const auto draw_surf_count = listArgs->info->drawSurfCount - listArgs->firstDrawSurfIndex;
-//
-//		const auto draw_surf_sub_mask = 0xFFFFFFFFE0000000;
-//
-//		game::GfxDrawSurf draw_surf = {};
-//		draw_surf.fields = draw_surf_list->fields;
-//
-//		game::GfxDrawSurf draw_surf_key = {};
-//		draw_surf_key.packed = draw_surf.packed & draw_surf_sub_mask;
-//
-//		const std::uint64_t first_surf = draw_surf_key.packed;
-//		auto draw_surf_index = 0u;
-//
-//		while (true)
-//		{
-//			const auto bsurf = reinterpret_cast<game::BModelSurface*>(&source->data->surfsBuffer[4u * draw_surf.fields.objectId]);
-//
-//			// #
-//			// transform
-//
-//			float model_axis[3][3] = {};
-//
-//			const auto placement = bsurf->placement;
-//			utils::unit_quat_to_axis(placement->base.quat, model_axis);
-//			const auto scale = placement->scale;
-//
-//			//const auto mtx = source->matrices.matrix[0].m;
-//			float mtx[4][4] = {};
-//
-//			// inlined ikMatrixSet44
-//			mtx[0][0] = model_axis[0][0] * scale;
-//			mtx[0][1] = model_axis[0][1] * scale;
-//			mtx[0][2] = model_axis[0][2] * scale;
-//			mtx[0][3] = 0.0f;
-//
-//			mtx[1][0] = model_axis[1][0] * scale;
-//			mtx[1][1] = model_axis[1][1] * scale;
-//			mtx[1][2] = model_axis[1][2] * scale;
-//			mtx[1][3] = 0.0f;
-//
-//			mtx[2][0] = model_axis[2][0] * scale;
-//			mtx[2][1] = model_axis[2][1] * scale;
-//			mtx[2][2] = model_axis[2][2] * scale;
-//			mtx[2][3] = 0.0f;
-//
-//			mtx[3][0] = placement->base.origin[0];
-//			mtx[3][1] = placement->base.origin[1];
-//			mtx[3][2] = placement->base.origin[2];
-//			mtx[3][3] = 1.0f;
-//
-//			prim->device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
-//
-//			// #
-//			// ------
-//
-//			const auto gfxsurf = bsurf->surf;
-//			const auto base_vertex = WORLD_VERTEX_STRIDE * gfxsurf->tris.firstVertex;
-//
-//			if (prim->streams[0].vb != gfx_world_vertexbuffer || prim->streams[0].offset != base_vertex || prim->streams[0].stride != WORLD_VERTEX_STRIDE)
-//			{
-//				prim->streams[0].vb = gfx_world_vertexbuffer;
-//				prim->streams[0].offset = base_vertex;
-//				prim->streams[0].stride = WORLD_VERTEX_STRIDE;
-//				prim->device->SetStreamSource(0, gfx_world_vertexbuffer, base_vertex, WORLD_VERTEX_STRIDE);
-//			}
-//
-//			const auto base_index = R_SetIndexData(prim, &game::sp::rgp->world->indices[gfxsurf->tris.baseIndex], gfxsurf->tris.triCount);
-//			prim->device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, gfxsurf->tris.vertexCount, base_index, gfxsurf->tris.triCount);
-//
-//			++draw_surf_index;
-//			if (draw_surf_index == draw_surf_count)
-//			{
-//				break;
-//			}
-//
-//			draw_surf.fields = draw_surf_list[draw_surf_index].fields;
-//			draw_surf_key.packed = draw_surf_list[draw_surf_index].packed & draw_surf_sub_mask;
-//
-//			if (draw_surf_key.packed != first_surf)
-//			{
-//				break;
-//			}
-//		}
-//
-//		//prim->device->SetVertexShader(og_vertex_shader);
-//		//prim->device->SetPixelShader(og_pixel_shader);
-//		prim->device->SetFVF(NULL);
-//
-//		return draw_surf_index;
-//	}
-//
-//
-//
-//	// *
-//	// effects
-//
-//	IDirect3DVertexShader9* _og_codemesh_vertex_shader;
-//	IDirect3DPixelShader9* _og_codemesh_pixel_shader;
-//	//constexpr auto MAX_EFFECT_VERTS = 0x4000; // 0x1000
-//	constexpr auto MAX_EFFECT_VERTS_FOR_HOOK = 0x40; // vertcount for DrawIndexedPrimitive // og: 0x40
-//
-//	void R_TessCodeMeshList_begin(game::GfxDrawSurfListArgs* listArgs)
-//	{
-//		const auto source = listArgs->context.source;
-//		const auto prim = &listArgs->context.state->prim;
-//
-//		// #
-//		// setup fixed-function
-//
-//		// vertex format
-//		prim->device->SetFVF(MODEL_VERTEX_FORMAT);
-//
-//		// save shaders
-//		//prim->device->GetVertexShader(&_og_codemesh_vertex_shader);
-//		//prim->device->GetPixelShader(&_og_codemesh_pixel_shader);
-//
-//		// def. needed or the game will render the mesh using shaders
-//		prim->device->SetVertexShader(nullptr);
-//		prim->device->SetPixelShader(nullptr);
-//
-//		// texture alpha + vertex alpha (decal blending)
-//		//prim->device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-//		//prim->device->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-//		//prim->device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_BLENDFACTORALPHA);
-//
-//		// #
-//		// vertices are already in 'world space' so origin is at 0 0 0
-//
-//		// inlined ikMatrixSet44
-//		float mtx[4][4] = {};
-//		mtx[0][0] = 1.0f; mtx[0][1] = 0.0f; mtx[0][2] = 0.0f; mtx[0][3] = 0.0f;
-//		mtx[1][0] = 0.0f; mtx[1][1] = 1.0f; mtx[1][2] = 0.0f; mtx[1][3] = 0.0f;
-//		mtx[2][0] = 0.0f; mtx[2][1] = 0.0f; mtx[2][2] = 1.0f; mtx[2][3] = 0.0f;
-//		mtx[3][0] = 0.0f; mtx[3][1] = 0.0f; mtx[3][2] = 0.0f; mtx[3][3] = 1.0f;
-//
-//		prim->device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
-//
-//		// #
-//		// unpack codemesh vertex data and place new data into the dynamic vertex buffer
-//
-//		void* og_buffer_data;
-//		if (const auto hr = source->data->codeMesh.vb.buffer->Lock(0, source->data->codeMesh.vb.used /*source->data->codeMesh.vertSize * MAX_EFFECT_VERTS*/, &og_buffer_data, D3DLOCK_READONLY);
-//			hr < 0)
-//		{
-//			//R_FatalLockError(hr);
-//			game::sp::Com_Error(0, "Fatal lock error - codeMesh :: R_TessCodeMeshList_begin");
-//		}
-//
-//		if ((int)(source->data->codeMesh.vb.used /*MODEL_VERTEX_STRIDE * MAX_EFFECT_VERTS*/ + game::sp::gfx_buf->dynamicVertexBuffer->used) > game::sp::gfx_buf->dynamicVertexBuffer->total)
-//		{
-//			game::sp::gfx_buf->dynamicVertexBuffer->used = 0;
-//		}
-//
-//		// R_SetVertexData
-//		void* buffer_data;
-//		if (const auto hr = game::sp::gfx_buf->dynamicVertexBuffer->buffer->Lock(
-//			game::sp::gfx_buf->dynamicVertexBuffer->used, source->data->codeMesh.vb.used /*MODEL_VERTEX_STRIDE * MAX_EFFECT_VERTS*/, &buffer_data,
-//				game::sp::gfx_buf->dynamicVertexBuffer->used != 0 ? 0x1000 : 0x2000); 
-//					hr < 0)
-//		{
-//			//R_FatalLockError(hr);
-//			game::sp::Com_Error(0, "Fatal lock error - dynamicVertexBuffer :: R_TessCodeMeshList_begin");
-//		}
-//
-//		// #
-//		// unpack verts
-//
-//		for (auto i = 0u; i * source->data->codeMesh.vertSize < (unsigned)source->data->codeMesh.vb.used && i < 0x4000; i++)
-//		{
-//			// position of vert within the vertex buffer
-//			const auto v_pos_in_buffer = i * source->data->codeMesh.vertSize; // size of GfxPackedVertex
-//
-//			/*if (v_pos_in_buffer > source->data->codeMesh.vb.used)
-//			{
-//				break;
-//			}*/
-//
-//			// interpret GfxPackedVertex as unpacked_model_vert
-//			const auto v = reinterpret_cast<unpacked_model_vert*>(((DWORD)buffer_data + v_pos_in_buffer));
-//
-//			// interpret GfxPackedVertex as GfxPackedVertex 
-//			const auto src_vert = reinterpret_cast<game::GfxPackedVertex*>(((DWORD)og_buffer_data + v_pos_in_buffer));
-//
-//
-//			// vert pos
-//			v->pos[0] = src_vert->xyz[0];
-//			v->pos[1] = src_vert->xyz[1];
-//			v->pos[2] = src_vert->xyz[2];
-//
-//			// normal unpacking in a cod4 hlsl shader:
-//			// temp0	 = i.normal * float4(0.007874016, 0.007874016, 0.007874016, 0.003921569) + float4(-1, -1, -1, 0.7529412);
-//			// temp0.xyz = temp0.www * temp0;
-//
-//			const auto scale = static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[3])) * (1.0f / 255.0f) + 0.7529412f;
-//			v->normal[0] = (static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[0])) * (1.0f / 127.0f) + -1.0f) * scale;
-//			v->normal[1] = (static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[1])) * (1.0f / 127.0f) + -1.0f) * scale;
-//			v->normal[2] = (static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[2])) * (1.0f / 127.0f) + -1.0f) * scale;
-//
-//			// uv's
-//			game::sp::Vec2UnpackTexCoords(src_vert->texCoord.packed, v->texcoord);
-//		}
-//
-//		source->data->codeMesh.vb.buffer->Unlock();
-//		game::sp::gfx_buf->dynamicVertexBuffer->buffer->Unlock();
-//
-//		const std::uint32_t vert_offset = game::sp::gfx_buf->dynamicVertexBuffer->used;
-//		game::sp::gfx_buf->dynamicVertexBuffer->used += source->data->codeMesh.vb.used /*(MODEL_VERTEX_STRIDE * MAX_EFFECT_VERTS)*/;
-//
-//		// #
-//		// #
-//
-//		if (prim->streams[0].vb != game::sp::gfx_buf->dynamicVertexBuffer->buffer || prim->streams[0].offset != vert_offset || prim->streams[0].stride != MODEL_VERTEX_STRIDE)
-//		{
-//			prim->streams[0].vb = game::sp::gfx_buf->dynamicVertexBuffer->buffer;
-//			prim->streams[0].offset = vert_offset;
-//			prim->streams[0].stride = MODEL_VERTEX_STRIDE;
-//			prim->device->SetStreamSource(0, game::sp::gfx_buf->dynamicVertexBuffer->buffer, vert_offset, MODEL_VERTEX_STRIDE);
-//		}
-//
-//		// R_TessCodeMeshList :: game code will now render all codemesh drawsurfs - functions nop'd:
-//		// > R_UpdateVertexDecl - sets vertexshader
-//		// > R_SetStreamSource  - sets vertexbuffer (codeMesh.vb)
-//	}
-//
-//	// reset ff at the end of R_TessCodeMeshList
-//	void R_TessCodeMeshList_end()
-//	{
-//		const auto dev = game::sp::dx->device;
-//		//dev->SetVertexShader(_og_codemesh_vertex_shader);
-//		//dev->SetPixelShader(_og_codemesh_pixel_shader);
-//		dev->SetFVF(NULL);
-//	}
-//
-//	__declspec(naked) void R_TessCodeMeshList_begin_stub()
-//	{
-//		const static uint32_t retn_addr = 0x73D5A3;
-//		__asm
-//		{
-//			pushad;
-//			push	eax; // listArgs
-//			call	R_TessCodeMeshList_begin;
-//			add		esp, 4;
-//			popad;
-//
-//			// og code
-//			push    ebx;
-//			mov     ebx, [eax];
-//			push    esi;
-//			mov     esi, [eax + 0xC];
-//			jmp		retn_addr;
-//		}
-//	}
-//
-//	__declspec(naked) void R_TessCodeMeshList_end_stub()
-//	{
-//		const static uint32_t retn_addr = 0x73D86E;
-//		__asm
-//		{
-//			pushad;
-//			call	R_TessCodeMeshList_end;
-//			popad;
-//
-//			// og code
-//			pop     edi;
-//			pop     esi;
-//			pop     ebx;
-//			mov     esp, ebp;
-//			jmp		retn_addr;
-//		}
-//	}
-//
+	/**
+	 * @brief completely rewritten R_TessBModel to render brushmodels using the fixed-function pipeline
+	 * - most challenging issue yet
+	 */
+	std::uint32_t R_TessBModel(game::GfxDrawSurfListArgs* listArgs, [[maybe_unused]] void* x, [[maybe_unused]] void* y)
+	{
+		const auto source = listArgs->context.source;
+		const auto prim = &listArgs->context.state->prim;
+
+		// #
+		// setup fixed-function
+
+		prim->device->SetFVF(WORLD_VERTEX_FORMAT);
+
+		// def. needed or the game will render the mesh using shaders
+		prim->device->SetVertexShader(nullptr);
+		prim->device->SetPixelShader(nullptr);
+
+		// texture alpha + vertex alpha (decal blending)
+		prim->device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+		prim->device->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+		prim->device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+
+
+		// #
+		// draw prims
+
+		const auto draw_surf_list = &listArgs->info->drawSurfs[listArgs->firstDrawSurfIndex];
+		const auto draw_surf_count = listArgs->info->drawSurfCount - listArgs->firstDrawSurfIndex;
+
+		const auto draw_surf_sub_mask = 0xFFFFFFFFFFFF;
+
+		game::GfxDrawSurf draw_surf = {};
+		draw_surf.fields = draw_surf_list->fields;
+
+		game::GfxDrawSurf draw_surf_key = {};
+		draw_surf_key.packed = draw_surf.packed & draw_surf_sub_mask;
+
+		const std::uint64_t first_surf = draw_surf_key.packed;
+		auto draw_surf_index = 0u;
+
+		while (true)
+		{
+			const auto bsurf = reinterpret_cast<game::BModelSurface*>(&source->u.input.data->surfsBuffer[4u * draw_surf.fields.objectId]);
+
+			// #
+			// transform
+
+			float model_axis[3][3] = {};
+
+			const auto placement = bsurf->placement;
+			utils::unit_quat_to_axis(placement->base.quat, model_axis);
+			const auto scale = placement->scale;
+
+			//const auto mtx = source->matrices.matrix[0].m;
+			float mtx[4][4] = {};
+
+			// inlined ikMatrixSet44
+			mtx[0][0] = model_axis[0][0] * scale;
+			mtx[0][1] = model_axis[0][1] * scale;
+			mtx[0][2] = model_axis[0][2] * scale;
+			mtx[0][3] = 0.0f;
+
+			mtx[1][0] = model_axis[1][0] * scale;
+			mtx[1][1] = model_axis[1][1] * scale;
+			mtx[1][2] = model_axis[1][2] * scale;
+			mtx[1][3] = 0.0f;
+
+			mtx[2][0] = model_axis[2][0] * scale;
+			mtx[2][1] = model_axis[2][1] * scale;
+			mtx[2][2] = model_axis[2][2] * scale;
+			mtx[2][3] = 0.0f;
+
+			mtx[3][0] = placement->base.origin[0];
+			mtx[3][1] = placement->base.origin[1];
+			mtx[3][2] = placement->base.origin[2];
+			mtx[3][3] = 1.0f;
+
+			prim->device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
+
+			// #
+			// ------
+
+			const auto gfxsurf = bsurf->surf;
+			const auto base_vertex = WORLD_VERTEX_STRIDE * gfxsurf->tris.firstVertex;
+
+			if (prim->streams[0].vb != gfx_world_vertexbuffer || prim->streams[0].offset != base_vertex || prim->streams[0].stride != WORLD_VERTEX_STRIDE)
+			{
+				prim->streams[0].vb = gfx_world_vertexbuffer;
+				prim->streams[0].offset = base_vertex;
+				prim->streams[0].stride = WORLD_VERTEX_STRIDE;
+				prim->device->SetStreamSource(0, gfx_world_vertexbuffer, base_vertex, WORLD_VERTEX_STRIDE);
+			}
+
+			const auto base_index = R_SetIndexData(prim, &game::sp::get_g_world_draw()->indices[gfxsurf->tris.baseIndex], gfxsurf->tris.triCount);
+			prim->device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, gfxsurf->tris.vertexCount, base_index, gfxsurf->tris.triCount);
+
+			++draw_surf_index;
+			if (draw_surf_index == draw_surf_count)
+			{
+				break;
+			}
+
+			draw_surf.fields = draw_surf_list[draw_surf_index].fields;
+			draw_surf_key.packed = draw_surf_list[draw_surf_index].packed & draw_surf_sub_mask;
+
+			if (draw_surf_key.packed != first_surf)
+			{
+				break;
+			}
+		}
+
+		prim->device->SetFVF(NULL);
+		return draw_surf_index;
+	}
+
+
+
+	// *
+	// effects
+
+	void R_TessCodeMeshList_begin(game::GfxDrawSurfListArgs* listArgs)
+	{
+		const auto source = listArgs->context.source;
+		const auto prim = &listArgs->context.state->prim;
+
+		// #
+		// setup fixed-function
+
+		prim->device->SetFVF(MODEL_VERTEX_FORMAT);
+
+		// def. needed or the game will render the mesh using shaders
+		prim->device->SetVertexShader(nullptr);
+		prim->device->SetPixelShader(nullptr);
+
+		// vertices are already in 'world space' so origin is at 0 0 0
+		float mtx[4][4] = {};
+		mtx[0][0] = 1.0f; mtx[0][1] = 0.0f; mtx[0][2] = 0.0f; mtx[0][3] = 0.0f;
+		mtx[1][0] = 0.0f; mtx[1][1] = 1.0f; mtx[1][2] = 0.0f; mtx[1][3] = 0.0f;
+		mtx[2][0] = 0.0f; mtx[2][1] = 0.0f; mtx[2][2] = 1.0f; mtx[2][3] = 0.0f;
+		mtx[3][0] = 0.0f; mtx[3][1] = 0.0f; mtx[3][2] = 0.0f; mtx[3][3] = 1.0f;
+
+		prim->device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
+
+#if !USE_NEW_FX_SYS // old way
+
+		// #
+		// unpack codemesh vertex data and place new data into the dynamic vertex buffer
+
+		void* og_buffer_data;
+		if (const auto hr = source->u.input.data->codeMeshPtr->vb.buffer->Lock(0, source->u.input.data->codeMeshPtr->vb.used, &og_buffer_data, D3DLOCK_READONLY);
+			hr < 0)
+		{
+			//R_FatalLockError(hr);
+			//game::sp::Com_Error(0, "Fatal lock error - codeMesh :: R_TessCodeMeshList_begin");
+			__debugbreak();
+		}
+
+		if ((int)(source->u.input.data->codeMeshPtr->vb.used + game::sp::gfx_buf->dynamicVertexBuffer->used) > game::sp::gfx_buf->dynamicVertexBuffer->total)
+		{
+			game::sp::gfx_buf->dynamicVertexBuffer->used = 0;
+		}
+
+		// R_SetVertexData
+		void* buffer_data;
+		if (const auto hr = game::sp::gfx_buf->dynamicVertexBuffer->buffer->Lock(
+			game::sp::gfx_buf->dynamicVertexBuffer->used, source->u.input.data->codeMeshPtr->vb.used, &buffer_data,
+				game::sp::gfx_buf->dynamicVertexBuffer->used != 0 ? 0x1000 : 0x2000); 
+					hr < 0)
+		{
+			//R_FatalLockError(hr);
+			//game::sp::Com_Error(0, "Fatal lock error - dynamicVertexBuffer :: R_TessCodeMeshList_begin");
+			__debugbreak();
+		}
+
+		if (!og_buffer_data || !buffer_data)
+		{
+			return;
+		}
+
+		// #
+		// unpack verts
+
+		for (auto i = 0u; i * source->u.input.data->codeMeshPtr->vertSize < (unsigned)source->u.input.data->codeMeshPtr->vb.used && i < 0x4000; i++)
+		{
+			// position of vert within the vertex buffer
+			const auto v_pos_in_buffer = i * source->u.input.data->codeMeshPtr->vertSize; // size of GfxPackedVertex
+
+			// interpret GfxPackedVertex as unpacked_model_vert
+			const auto v = reinterpret_cast<unpacked_model_vert*>(((DWORD)buffer_data + v_pos_in_buffer));
+
+			// interpret GfxPackedVertex as GfxPackedVertex 
+			const auto src_vert = reinterpret_cast<game::GfxPackedVertex*>(((DWORD)og_buffer_data + v_pos_in_buffer));
+
+			// vert pos
+			v->pos[0] = src_vert->xyz[0];
+			v->pos[1] = src_vert->xyz[1];
+			v->pos[2] = src_vert->xyz[2];
+
+			// normal unpacking in a cod4 hlsl shader:
+			// temp0	 = i.normal * float4(0.007874016, 0.007874016, 0.007874016, 0.003921569) + float4(-1, -1, -1, 0.7529412);
+			// temp0.xyz = temp0.www * temp0;
+
+			const auto scale = static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[3])) * (1.0f / 255.0f) + 0.7529412f;
+			v->normal[0] = (static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[0])) * (1.0f / 127.0f) + -1.0f) * scale;
+			v->normal[1] = (static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[1])) * (1.0f / 127.0f) + -1.0f) * scale;
+			v->normal[2] = (static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[2])) * (1.0f / 127.0f) + -1.0f) * scale;
+
+			// uv's
+			game::sp::Vec2UnpackTexCoords(src_vert->texCoord.packed, v->texcoord);
+		}
+
+		source->u.input.data->codeMeshPtr->vb.buffer->Unlock();
+		game::sp::gfx_buf->dynamicVertexBuffer->buffer->Unlock();
+
+		const std::uint32_t vert_offset = game::sp::gfx_buf->dynamicVertexBuffer->used;
+		game::sp::gfx_buf->dynamicVertexBuffer->used += source->u.input.data->codeMeshPtr->vb.used;
+
+		// #
+		// #
+
+		if (prim->streams[0].vb != game::sp::gfx_buf->dynamicVertexBuffer->buffer || prim->streams[0].offset != vert_offset || prim->streams[0].stride != MODEL_VERTEX_STRIDE)
+		{
+			prim->streams[0].vb = game::sp::gfx_buf->dynamicVertexBuffer->buffer;
+			prim->streams[0].offset = vert_offset;
+			prim->streams[0].stride = MODEL_VERTEX_STRIDE;
+			prim->device->SetStreamSource(0, game::sp::gfx_buf->dynamicVertexBuffer->buffer, vert_offset, MODEL_VERTEX_STRIDE);
+		}
+
+#else
+		if (prim->streams[0].vb != dynamic_codemesh_vb || prim->streams[0].offset != 0 || prim->streams[0].stride != MODEL_VERTEX_STRIDE)
+		{
+			prim->streams[0].vb = dynamic_codemesh_vb;
+			prim->streams[0].offset = 0;
+			prim->streams[0].stride = MODEL_VERTEX_STRIDE;
+			prim->device->SetStreamSource(0, dynamic_codemesh_vb, 0, MODEL_VERTEX_STRIDE);
+		}
+#endif
+
+		// R_TessCodeMeshList :: game code will now render all codemesh drawsurfs - functions nop'd:
+		// > R_UpdateVertexDecl - sets vertexshader
+		// > R_SetStreamSource  - sets vertexbuffer (codeMesh.vb)
+	}
+
+	// reset ff at the end of R_TessCodeMeshList
+	void R_TessCodeMeshList_end()
+	{
+		const auto dev = game::sp::dx->device;
+		dev->SetFVF(NULL);
+	}
+
+	__declspec(naked) void R_TessCodeMeshList_begin_stub()
+	{
+		const static uint32_t retn_addr = 0x73A639;
+		__asm
+		{
+			pushad;
+			push	eax; // listArgs
+			call	R_TessCodeMeshList_begin;
+			add		esp, 4;
+			popad;
+
+			// og code
+			push    ebx;
+			push    esi;
+			mov     esi, [eax + 4];
+			jmp		retn_addr;
+		}
+	}
+
+	__declspec(naked) void R_TessCodeMeshList_end_stub()
+	{
+		const static uint32_t retn_addr = 0x73A903;
+		__asm
+		{
+			pushad;
+			call	R_TessCodeMeshList_end;
+			popad;
+
+			// og code
+			pop     edi;
+			pop     esi;
+			pop     ebx;
+			mov     esp, ebp;
+			jmp		retn_addr;
+		}
+	}
+
 	// *
 	// build buffers
 
@@ -1334,12 +1169,190 @@ namespace components::sp
 		}
 	}
 
+//#define ZNEAR_TEST
+#ifdef ZNEAR_TEST
+	game::dvar_s r_znear = {};
+	game::dvar_s* r_znear_ptr = nullptr;
+	game::dvar_s r_znear_depthhack = {};
+	game::dvar_s* r_znear_depthhack_ptr = nullptr;
+#endif
+
+	void pre_rb_draw3d()
+	{
+		//const auto dev = dx->device;
+		//const auto source = game::sp::gfxCmdBufSourceState;
+
+#ifdef ZNEAR_TEST
+		if (const auto var = game::sp::Dvar_FindVar("r_sunflare_fadein"); var)
+		{
+			r_znear.current.value = var->current.value;
+		}
+
+		if (const auto var = game::sp::Dvar_FindVar("r_sunflare_fadeout"); var)
+		{
+			r_znear_depthhack.current.value = -var->current.value;
+		}
+#endif
+		//rtx::setup_rtx(source->u.input.data->viewParms);
+
+#if USE_NEW_FX_SYS
+
+		// alloc buffer once
+		if (static bool alloc_dynamic_codemesh_vertexbuffer = false; !alloc_dynamic_codemesh_vertexbuffer)
+		{
+			if (const auto hr = dev->CreateVertexBuffer(source->u.input.data->codeMeshPtr->vb.total, D3DUSAGE_WRITEONLY, MODEL_VERTEX_FORMAT, D3DPOOL_DEFAULT, &dynamic_codemesh_vb, nullptr);
+				hr > 0)
+			{
+				__debugbreak();
+			}
+
+			alloc_dynamic_codemesh_vertexbuffer = true;
+		}
+
+		// #
+		// lock codemesh vb -> unpack vertex data and place new data into the dynamic_codemesh_vb
+
+		void* og_buffer_data;
+		if (const auto hr = source->u.input.data->codeMeshPtr->vb.buffer->Lock(0, source->u.input.data->codeMeshPtr->vb.used, &og_buffer_data, D3DLOCK_READONLY);
+			hr < 0)
+		{
+			//R_FatalLockError(hr);
+			//game::sp::Com_Error(0, "Fatal lock error - codeMesh :: R_TessCodeMeshList_begin");
+			__debugbreak();
+		}
+
+		// #
+
+		auto i = 0u;
+
+		void* buffer_data = nullptr;
+		if (const auto hr = dynamic_codemesh_vb->Lock(0, source->u.input.data->codeMeshPtr->vb.used, &buffer_data, D3DUSAGE_WRITEONLY);
+			hr >= 0)
+		{
+			for (i = 0u; i * source->u.input.data->codeMeshPtr->vertSize < (unsigned)source->u.input.data->codeMeshPtr->vb.used && i < 0x4000; i++)
+			{
+				// position of vert within the vertex buffer
+				const auto v_pos_in_buffer = i * source->u.input.data->codeMeshPtr->vertSize; // size of GfxPackedVertex
+
+				/*if (v_pos_in_buffer > source->data->codeMesh.vb.used)
+				{
+					break;
+				}*/
+
+				// interpret GfxPackedVertex as unpacked_model_vert
+				const auto v = reinterpret_cast<unpacked_model_vert*>(((DWORD)buffer_data + v_pos_in_buffer));
+
+				// interpret GfxPackedVertex as GfxPackedVertex 
+				const auto src_vert = reinterpret_cast<game::GfxPackedVertex*>(((DWORD)og_buffer_data + v_pos_in_buffer));
+				//const auto src_vert = reinterpret_cast<game::GfxPackedVertex*>(source->u.input.data->codeMeshPtr->vb.verts)[i];
+
+
+				// vert pos
+				v->pos[0] = src_vert->xyz[0];
+				v->pos[1] = src_vert->xyz[1];
+				v->pos[2] = src_vert->xyz[2];
+
+				// normal unpacking in a cod4 hlsl shader:
+				// temp0	 = i.normal * float4(0.007874016, 0.007874016, 0.007874016, 0.003921569) + float4(-1, -1, -1, 0.7529412);
+				// temp0.xyz = temp0.www * temp0;
+
+				const auto scale = static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[3])) * (1.0f / 255.0f) + 0.7529412f;
+				v->normal[0] = (static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[0])) * (1.0f / 127.0f) + -1.0f) * scale;
+				v->normal[1] = (static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[1])) * (1.0f / 127.0f) + -1.0f) * scale;
+				v->normal[2] = (static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[2])) * (1.0f / 127.0f) + -1.0f) * scale;
+
+				// uv's
+				game::sp::Vec2UnpackTexCoords(src_vert->texCoord.packed, v->texcoord);
+			}
+
+			dynamic_codemesh_vb->Unlock();
+		}
+		else
+		{
+			dynamic_codemesh_vb->Release();
+			dynamic_codemesh_vb = nullptr;
+		}
+
+		const auto y = i;
+
+		// unlock og codemesh vb
+		//source->u.input.data->codeMeshPtr->vb.buffer->Unlock();
+
+#endif
+
+	}
+
+	__declspec(naked) void rb_draw3d_internal_stub()
+	{
+		const static uint32_t retn_addr = 0x6D2ECC;
+		const static uint32_t retn_jz = 0x6D2EED;
+		__asm
+		{
+			pushad;
+			call	pre_rb_draw3d;
+			popad;
+
+			// og instructions
+			sub     ecx, 0;
+			push    esi;
+			jz      loc_6D2EED;
+			jmp		retn_addr;
+
+		loc_6D2EED:
+			jmp		retn_jz;
+
+		}
+	}
 
 	// *
 	// *
+
+#ifdef ZNEAR_TEST
+	__declspec(naked) void add_znear_stub()
+	{
+		const static uint32_t retn_addr = 0x6C802E;
+		__asm
+		{
+			mov		eax, r_znear_ptr;
+			movss   xmm0, dword ptr[eax + 0x18]
+			jmp		retn_addr;
+		}
+	}
+
+	
+	__declspec(naked) void add_znear_depthhack_stub()
+	{
+		const static uint32_t retn_addr = 0x6C8072;
+		__asm
+		{
+			mov		eax, r_znear_depthhack_ptr;
+			movss   xmm0, dword ptr[eax + 0x18]
+			jmp		retn_addr;
+		}
+	}
+#endif
 
 	fixed_function::fixed_function()
 	{
+
+
+#ifdef ZNEAR_TEST
+		// add znear val
+		/*mov  eax, ?r_znear@@3PBUdvar_s@@B
+		movss  xmm0, dword ptr [eax+18h]*/
+		r_znear.current.value = 4.00195f;
+		r_znear_ptr = &r_znear;
+		utils::hook::nop(0x6C8026, 8);
+		utils::hook(0x6C8026, add_znear_stub, HOOK_JUMP).install()->quick();
+
+
+		r_znear_depthhack.current.value = 4.0f;
+		r_znear_depthhack_ptr = &r_znear_depthhack;
+		utils::hook::nop(0x6C806A, 8);
+		utils::hook(0x6C806A, add_znear_depthhack_stub, HOOK_JUMP).install()->quick();
+#endif
+
+#if 1
 		// force fullbright
 		//utils::hook::nop(0x724AC9, 2); // no decals :[
 
@@ -1349,59 +1362,60 @@ namespace components::sp
 		// fixed-function rendering of static models (R_TessStaticModelRigidDrawSurfList)
 		utils::hook(0x7495B7, R_DrawStaticModelDrawSurfNonOptimized, HOOK_CALL).install()->quick();
 
-		// fixed-function rendering of rigid xmodels - call 1 (RB_TessXModelRigidDrawSurfList-> R_DrawXModelSurfCamera-> R_DrawXModelRigidModelSurf1
-		
-		//utils::hook(0x74CCB2, R_DrawXModelRigidModelSurf1_stub, HOOK_JUMP).install()->quick();
-		//utils::hook::set<BYTE>(0x74B083, 0xEB); // make sure we never override ecx
-		//utils::hook::nop(0x74B0A6, 7); // we want GfxModelRigidSurface
-		//utils::hook(0x74B0A6, R_DrawXModelRigidModelSurf1_stub, HOOK_JUMP).install()->quick();
 
+		// fixed-function rendering of rigid xmodels - call 1 (RB_TessXModelRigidDrawSurfList-> R_DrawXModelSurfCamera-> R_DrawXModelRigidModelSurf1
+#if 1
 		// save GfxModelRigidSurface* for R_DrawXModelRigidModelSurf
 		utils::hook(0x74AFC9, save_gfxmodel_for_R_DrawXModelRigidModelSurf, HOOK_JUMP).install()->quick();
-		utils::hook(0x74B0B7, R_DrawXModelRigidModelSurf, HOOK_CALL).install()->quick();
+		utils::hook(0x74B0B7, R_DrawXModelRigidModelSurf, HOOK_CALL).install()->quick(); // eg. viewmodel gun
 
-//		// ^ call 2
-//		utils::hook(0x74D064, R_DrawXModelRigidModelSurf2_stub, HOOK_JUMP).install()->quick();
-//
-//		// fixed-function rendering of skinned (animated) models (R_TessXModelSkinnedDrawSurfList)
-//		utils::hook(0x73F190, R_DrawXModelSkinnedUncached_stub, HOOK_JUMP).install()->quick();
-//
+		// fixed-function rendering of skinned (animated) models (R_TessXModelSkinnedDrawSurfList)
+		utils::hook::nop(0x73C977, 6);
+		utils::hook(0x73C977, R_DrawXModelSkinnedUncached_stub, HOOK_JUMP).install()->quick(); // eg. viewmodel hands
+#endif
+
+
+		// TODO fixed-function rendering of static skinned models
+		//utils::hook(0x65618E, R_DrawStaticModelsSkinnedDrawSurf, HOOK_CALL).install()->quick();
+		//utils::hook::nop(0x73E478, 5);
+
 		// fixed-function rendering of world surfaces (R_TessTrianglesPreTessList)
 		// :: R_SetStreamsForBspSurface -> R_ClearAllStreamSources -> Stream 1 (world->vld.layerVb) handles 'decals'
 		// :: see technique 'lm_r0c0t1c1n1_nc_sm3.tech'
 		utils::hook(0x73EC45, R_DrawBspDrawSurfsPreTess, HOOK_CALL).install()->quick(); // unlit
-		// ^ without batching
-		utils::hook(0x73EA98, R_DrawBspDrawSurfs, HOOK_CALL).install()->quick();
 
-		//		// fixed-function rendering of brushmodels
-//		utils::hook(0x741420, R_TessBModel, HOOK_JUMP).install()->quick();
-//
-//		// fixed-function rendering of effects - R_TessCodeMeshList (particle clounds are still shader based)
-//		if (!flags::has_flag("stock_effects"))
-//		{
-//			utils::hook::set<BYTE>(0x73D70F + 5, MAX_EFFECT_VERTS_FOR_HOOK); // change max verts from 0x4000 to 0x1000 
-//			utils::hook::nop(0x73D5CB, 5); // R_UpdateVertexDecl
-//			utils::hook::nop(0x73D6E2, 5); // R_SetStreamSource
-//			utils::hook::nop(0x73D59C, 7); utils::hook(0x73D59C, R_TessCodeMeshList_begin_stub, HOOK_JUMP).install()->quick();
-//			utils::hook(0x73D869, R_TessCodeMeshList_end_stub, HOOK_JUMP).install()->quick();
-//		}
-//
-//		// ----
-//
+		// FIXED: Surface batching is only in use for a few seconds (~3s) after game initialization and falls back to individual rendering after
+		utils::hook(0x73EA98, R_DrawBspDrawSurfs, HOOK_CALL).install()->quick(); // ^ without surface batching
+
+		// fixed-function rendering of brushmodels
+		utils::hook(0x73EC60, R_TessBModel, HOOK_JUMP).install()->quick();
+
+		// hook beginning of 'RB_Draw3DInternal'
+		utils::hook::nop(0x6D2EC6, 6); utils::hook(0x6D2EC6, rb_draw3d_internal_stub, HOOK_JUMP).install()->quick();
+
+#if 1 // slows down everything .. -> use codemesh buff instead of dynamic -> copy codemesh buf before drawloop?
+		if (!flags::has_flag("stock_effects"))
+		{
+			//utils::hook::set<BYTE>(0x73D70F + 5, MAX_EFFECT_VERTS_FOR_HOOK); // change max verts from 0x4000 to 0x1000 
+			utils::hook::nop(0x73A668, 5); // R_UpdateVertexDecl
+			utils::hook::nop(0x73A759, 5); // R_SetStreamSource
+			utils::hook(0x73A634, R_TessCodeMeshList_begin_stub, HOOK_JUMP).install()->quick();
+			utils::hook(0x73A8FE, R_TessCodeMeshList_end_stub, HOOK_JUMP).install()->quick();
+		}
+#endif
+
+		// ----
+
 		// on map load :: build custom buffers for fixed-function rendering
 		utils::hook(0x64FEAD, init_fixed_function_buffers_stub, HOOK_JUMP).install()->quick(); // CG_Init :: CG_NorthDirectionChanged call
 		utils::hook(0x727D2A, XSurfaceOptimizeRigid_stub, HOOK_JUMP).install()->quick(); // stock XSurfaceOptimize :: XSurfaceOptimizeRigid call
 
 		// on renderer shutdown :: release custom buffers used by fixed-function rendering
 		utils::hook(0x6B8456, free_fixed_function_buffers_stub, HOOK_JUMP).install()->quick(); // R_Shutdown :: R_ResetModelLighting call
-//
-//#ifdef DEBUG
-//		command::add("rtx_rebuild_world", [this](command::params)
-//		{
-//			gfx_world_vertexbuffer->Release();
-//			gfx_world_vertexbuffer = nullptr;
-//			build_gfxworld_buffers();
-//		});
-//#endif
+
+#else
+		// hook beginning of 'RB_Draw3DInternal'
+		utils::hook::nop(0x6D2EC6, 6); utils::hook(0x6D2EC6, rb_draw3d_internal_stub, HOOK_JUMP).install()->quick();
+#endif
 	}
 }

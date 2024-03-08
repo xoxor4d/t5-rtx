@@ -24,6 +24,7 @@ namespace game
 		extern DxGlobals* dx;
 		//extern clipMap_t* cm;
 		extern r_global_permanent_t* rgp;
+		extern GfxCmdBufSourceState* gfxCmdBufSourceState;
 
 		static DWORD* g_world_draw_ptr = (DWORD*)(0x460C0B0);
 		extern GfxWorldDraw* get_g_world_draw();

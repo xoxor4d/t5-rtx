@@ -1114,7 +1114,7 @@ namespace game
 	struct GfxCmdBufSourceState
 	{
 		GfxCodeMatrices matrices;
-		$C1E24B5ACD1937141180CCC4F9D67481 ___u1;
+		$C1E24B5ACD1937141180CCC4F9D67481 u;
 		char pad[592];
 		/*GfxMatrix shadowLookupMatrix;
 		unsigned __int16 constVersions[226];
@@ -1176,10 +1176,6 @@ namespace game
 		unsigned int activeStateBits[2];
 		MaterialPixelShader* pixelShader;
 		MaterialVertexShader* vertexShader;
-		//unsigned int pixPrimarySortKey;
-		//Material* pixMaterial;
-		//MaterialTechnique* pixTechnique;
-		//int pixCombine;
 		GfxViewport viewport;
 		GfxViewport scissor;
 		int scissorEnabled;
@@ -1728,6 +1724,38 @@ namespace game
 	{
 		GfxModelSkinnedSurface surf;
 		GfxScaledPlacement placement;
+	};
+
+	struct GfxCmdBufContext
+	{
+		GfxCmdBufSourceState* source;
+		GfxCmdBufState* state;
+	};
+
+
+	struct GfxDrawSurfListArgs
+	{
+		GfxCmdBufContext context;
+		unsigned int firstDrawSurfIndex;
+		GfxDrawSurfListInfo* info;
+	};
+
+	struct __declspec(align(8)) SkinXModelCmd
+	{
+		void* modelSurfs;
+		DObjAnimMat* mat;
+		int surfacePartBits[5];
+		float viewoffset[3];
+		unsigned __int16 surfCount;
+	};
+
+	struct BModelSurface
+	{
+		GfxScaledPlacement* placement;
+		GfxSurface* surf;
+		ShaderConstantSet* shaderConstSet;
+		float bmodelBurnAmt;
+		float bmodelFadeAmt;
 	};
 
 #pragma warning(push)

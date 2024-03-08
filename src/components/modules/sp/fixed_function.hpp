@@ -8,7 +8,7 @@ namespace components::sp
 		fixed_function();
 		~fixed_function() = default;
 		const char* get_name() override { return "fixed_function_sp"; }
-	
+
 	private:
 	};
 }
