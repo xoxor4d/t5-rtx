@@ -28,6 +28,10 @@ namespace game
 
 		static DWORD* g_world_draw_ptr = (DWORD*)(0x460C0B0);
 		extern GfxWorldDraw* get_g_world_draw();
+
+		static DWORD* frontenddata_out_ptr = (DWORD*)(0x3B3708C);
+		extern game::GfxBackEndData* get_frontenddata_out();
+
 		//extern GfxWorldDraw* g_worldDraw;
 		extern GfxBuffers* gfx_buf;
 
@@ -47,6 +51,7 @@ namespace game
 		//static utils::function<void __fastcall (int, GfxCmdBufSourceState*)> R_Set3D = 0x7244C0;
 
 		static utils::function<void* (int)> Sys_GetValue = 0x67D4F0;
+		static utils::function<BOOL ()> Sys_IsMainThread = 0x5A48F0;
 
 		typedef void(*Cmd_ExecuteSingleCommand_t)(int controller, int a2, const char* cmd);
 			extern Cmd_ExecuteSingleCommand_t Cmd_ExecuteSingleCommand;

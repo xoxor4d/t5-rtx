@@ -29,6 +29,12 @@ namespace game
 			return out;
 		}
 
+		game::GfxBackEndData* get_frontenddata_out()
+		{
+			const auto out = reinterpret_cast<game::GfxBackEndData*>(*game::sp::frontenddata_out_ptr);
+			return out;
+		}
+
 		game::GfxBuffers* gfx_buf = reinterpret_cast<game::GfxBuffers*>(0x41706E0);
 
 		cmd_function_s** cmd_ptr = reinterpret_cast<cmd_function_s**>(0x2430014);

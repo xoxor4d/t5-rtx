@@ -1393,7 +1393,7 @@ namespace components::sp
 		// hook beginning of 'RB_Draw3DInternal'
 		utils::hook::nop(0x6D2EC6, 6); utils::hook(0x6D2EC6, rb_draw3d_internal_stub, HOOK_JUMP).install()->quick();
 
-#if 1 // slows down everything .. -> use codemesh buff instead of dynamic -> copy codemesh buf before drawloop?
+#if 1	// slows down everything .. -> use codemesh buff instead of dynamic -> copy codemesh buf before drawloop?
 		if (!flags::has_flag("stock_effects"))
 		{
 			//utils::hook::set<BYTE>(0x73D70F + 5, MAX_EFFECT_VERTS_FOR_HOOK); // change max verts from 0x4000 to 0x1000 

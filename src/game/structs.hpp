@@ -1891,6 +1891,24 @@ namespace game
 	};
 #pragma warning(pop)
 
+	enum sysEventType_t
+	{
+		SE_NONE = 0x0,
+		SE_KEY = 0x1,
+		SE_CHAR = 0x2,
+		SE_CONSOLE = 0x3,
+	};
+
+	struct sysEvent_t
+	{
+		int evTime;
+		sysEventType_t evType;
+		int evValue;
+		int evValue2;
+		int evPtrLength;
+		void* evPtr;
+	};
+
 	enum dvarType_t
 	{
 		DVAR_TYPE_BOOL = 0x0,

@@ -159,13 +159,14 @@ namespace components::sp
 	}
 #endif
 
+	// main thread
 	void msg_loop()
 	{
 		//const auto hwnd = reinterpret_cast<HWND>(0x27706BC);
 		HWND hwnd = nullptr;
 
 		tagMSG msg = {};
-		while (PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE))
+		while (PeekMessageA(&msg, hwnd, 0, 0, 0))
 		{
 			if (!GetMessageA(&msg, hwnd, 0, 0))
 			{
@@ -178,7 +179,18 @@ namespace components::sp
 
 			TranslateMessage(&msg);
 			DispatchMessageA(&msg);
+
+			printf("Msg loop: %d \n", msg.message);
 		}
+
+		/*auto eventhead = reinterpret_cast<int*>(0x276D5DC);
+		auto eventtail = reinterpret_cast<int*>(0x276F55C);
+
+		auto eventque = reinterpret_cast<game::sysEvent_t*>(0x276DAF0);
+		game::sysEvent_t xx[256] = {};
+
+		memcpy(&xx, eventque, sizeof(game::sysEvent_t) * 256);
+		auto aaaa = 9;*/
 	}
 
 	void __declspec(naked) sys_getevent_stub()
@@ -326,26 +338,180 @@ namespace components::sp
 		}
 	}
 
+	__declspec(naked) void fx_draw_cmd_stub()
+	{
+		const static uint32_t func_addr = 0x60B390;
+		const static uint32_t retn_addr = 0x6E2A5E;
+		__asm
+		{
+			// nop'd one push so we have to sub 4 from esp
+			// ecx is pushed
+			call	func_addr;
+			add     esp, 0x18 - 4;
+			jmp		retn_addr;
+		}
+	}
+		
+
+	int fuck_me()
+	{
+		utils::hook::call<void(__cdecl)()>(0x6B82E0)(); // R_Init
+		return utils::hook::call<int(__cdecl)()>(0x49D640)(); // related to g_connectpaths
+	}
+
+	void fuck_me2()
+	{
+		// TODO not needed ig
+		if (const auto var = game::sp::Dvar_FindVar("r_smp_backend"); var && !var->current.enabled)
+		{
+			// Sys_WaitRenderer
+			utils::hook::call<void(__cdecl)()>(0x434750)();
+
+			//while (!R_FinishedFrontendWorkerCmds())
+			while (!utils::hook::call<BOOL(__cdecl)()>(0x4155F0)())
+			{
+				Sleep(1u);
+			}
+
+			// R_WaitFrontendWorkerCmds - needed ?!
+			utils::hook::call<void(__cdecl)()>(0x658F70)();
+		}
+
+
+		// 5A06C0 - Sys_StopRenderer
+		utils::hook::call<void(__cdecl)()>(0x5A06C0)();
+
+		// 5A0720 - Sys_StartRenderer
+		utils::hook::call<void(__cdecl)()>(0x5A0720)();
+	}
+
+	void fuck_me3()
+	{
+		// og call - R_EndFrame
+		utils::hook::call<void(__cdecl)()>(0x6D7B90)();
+
+		//if (game::sp::dx)
+
+		// TODO: call RB_UpdateDynamicBuffers (0x6EBBB0) -> assign frontentdata before that to 0x4643FD8 ---   before R_IssueRenderCommands !??!?
+
+		// 0x4643FD8
+		auto smpdata = reinterpret_cast<game::GfxBackEndData**>(0x4643FD8);
+		const auto xx = game::sp::get_frontenddata_out();
+
+		if (xx->viewInfo && xx->skinnedCacheVb)
+		{
+			*smpdata = xx;
+
+			// RB_UpdateDynamicBuffers
+			utils::hook::call<void(__cdecl)()>(0x6EBBB0)();
+		}
+	}
+
+
 	main_module::main_module()
 	{
-		// drawing only little on screen = no viewmodel jitter
-		// drawing X more results in jitter
+		// setting sys_smp_allowed to 0 helps with the initial startup lock
+		// R_ToggleSmpFrameCmd :: R_ToggleSmpFrame called before Sys_WakeRenderer
+
+
+		// needs +set sys_smp_allowed 1 +set r_smp_worker 0 +set r_smp_backend 0 +set r_pretess 0 +set com_introPlayed 1 +set com_startupIntroPlayed 1 +devmap zombie_theater
+
+
+		// do not call r_init from the renderer thread
+		utils::hook::nop(0x6EBEC9, 5);
+
+		// call r_init from the main thread
+		// todo: reimpl. R_Init in various other functions
+		utils::hook(0x52F28A, fuck_me, HOOK_CALL).install()->quick();
+
+		utils::hook(0x6EBE84, fuck_me2, HOOK_CALL).install()->quick();
+
+		// TODO: call RB_UpdateDynamicBuffers (0x6EBBB0) -> assign frontentdata before that to 0x4643FD8 ---   before R_IssueRenderCommands !??!?
+		utils::hook(0x7A18AA, fuck_me3, HOOK_CALL).install()->quick();
+
+		//utils::hook::nop(0x6D5853, 2); // R_HandOffToBackend :: disable sys_smp_allowed check for Sys_FrontEndSleep
+		//utils::hook::nop(0x6D578A, 2); // R_SyncRenderThread :: same ^
+		//utils::hook::nop(0x6B8ADF, 2); // same ^
+		//utils::hook::nop(0x6C3882, 2); // same ^
+		//utils::hook::nop(0x6D436A, 2); // same ^
+		//utils::hook::nop(0x6D7E7E, 2); // same ^ - bad
+		//utils::hook::nop(0x6D7EE6, 6); // same ^ - bad
+
+		//utils::hook::nop(0x6D7FDE, 2); // same ^ .. hmm db related
+		//utils::hook::nop(0x6E2A98, 2); // same ^ ... fx should not nop here?
+
+		//utils::hook::nop(0x70C42A, 2); // same ^
+		//utils::hook::nop(0x6D5912, 14); // R_IssueRenderCommands :: if ( Sys_IsRenderThread() ) Sys_RenderCompleted();
+
+		// ouch
+		//utils::hook::nop(0x6EB214, 6);
+		//utils::hook::jump(0x6EB228, 0x6EB51D);
+
+		//utils::hook::nop(0x6E2AA4, 5);
+
+
+
+		/*try impl:
+		while ( !R_FinishedFrontendWorkerCmds() )
+		{
+		  NET_Sleep(1u);
+		}
+
+		OR
+
+		if ( Sys_IsMainThread() )
+		{
+			R_WaitFrontendWorkerCmds();
+		}*/
+
+		//utils::hook::nop(0x6EBEB3, 5);
+		//utils::hook::set<BYTE>(0x59BA6C, 0xEB);
+
+
+		utils::hook::nop(0x6C7973, 5); // Sys_WaitWorkerCmdInternal - fx_marks_draw
+		//utils::hook::nop(0x6C61D2, 5); // Sys_WaitWorkerCmdInternal - fx_draw
+
+
+		
+
+
+
+#define MOVE_MSG_PUMP
+#ifdef MOVE_MSG_PUMP
+		utils::hook::nop(0x6EB2DE, 29); // RB_SwapBuffers :: nop peek msg
+		utils::hook::set<BYTE>(0x6EB2FB, 0xEB); // RB_SwapBuffers :: skip translate and dispatch msg
+
+		// second msg loop in rb_swapbuffers
+		utils::hook::nop(0x6EB45E, 17); // RB_SwapBuffers :: nop peek msg
+		utils::hook::set<BYTE>(0x6EB46F, 0xEB);
+
+		//utils::hook::nop(0x6EB2B3, 43); // RB_SwapBuffers :: nop showcursor loop
+		//utils::hook::nop(0x6EB288, 16); // RB_SwapBuffers :: nop sys_queryrenderevent
+		//utils::hook::set<BYTE>(0x6EB298, 0xEB); // ^ skip more
+
+		// impl. msg loop in Sys_GetEvent
+		utils::hook(0x867C5B, sys_getevent_stub, HOOK_JUMP).install()->quick();
+#endif
+
 
 		// call worker cmd's directly without using jq threads
 
 		//utils::hook(0x6CA0D4, add_skin_xmodel_cmd_stub, HOOK_JUMP).install()->quick();
 		//utils::hook(0x659089, 5); // do not wait or flush callback ^
 
-
 		//utils::hook::nop(0x6C74F5, 6);
 		//utils::hook(0x6C74F5, add_sceneent_cmd_stub, HOOK_JUMP).install()->quick();
 		//utils::hook::nop(0x6C7515, 3); // add esp, 0xC
 
+		// 60B390 -  FX_GenerateVerts
+		utils::hook::nop(0x6E2A43, 5);
+		utils::hook(0x6E2A56, fx_draw_cmd_stub, HOOK_JUMP).install()->quick();
 
 		// --
 
 		// not needed
 		//utils::hook::nop(0x6B833F, 10); // disable RB_CalcSunSpriteSamples
+
 
 #ifdef DEBUG_WINPROC
 		utils::hook(0x554B3E, main_win_proc_stub, HOOK_JUMP).install()->quick();
@@ -353,7 +519,7 @@ namespace components::sp
 
 #if DEBUG
 		// not the issue
-		utils::hook(0x4C9A1E, Sys_QueryD3DDeviceOKEvent_stub, HOOK_JUMP).install()->quick();
+		//utils::hook(0x4C9A1E, Sys_QueryD3DDeviceOKEvent_stub, HOOK_JUMP).install()->quick();
 
 		// check failing 'if ( count + gfx_buf.preTessIndexBuffer->used > gfx_buf.preTessIndexBuffer->total )' check in R_PreTessBspDrawSurfs
 		utils::hook(0x72C958, R_PreTessBspDrawSurfs_stub, HOOK_JUMP).install()->quick();
@@ -368,19 +534,7 @@ namespace components::sp
 		utils::hook::set<BYTE>(0x7098D8 + 3, 0x40); // needs to be double of ^
 		utils::hook::set<BYTE>(0x7095E3 + 3, 0x40); // needs to be double of ^ -> R_InitDynamicIndexBufferState
 
-//#define MOVE_MSG_PUMP
-#ifdef MOVE_MSG_PUMP
-		utils::hook::nop(0x6EB2DE, 29); // RB_SwapBuffers :: nop peek msg
-		utils::hook::set<BYTE>(0x6EB2FB, 0xEB); // RB_SwapBuffers :: skip translate and dispatch msg
 
-		utils::hook::nop(0x6EB2B3, 43); // RB_SwapBuffers :: nop showcursor loop
-
-		utils::hook::nop(0x6EB288, 16); // RB_SwapBuffers :: nop sys_queryrenderevent
-		utils::hook::set<BYTE>(0x6EB298, 0xEB); // ^ skip more
-
-		// impl. msg loop in Sys_GetEvent
-		utils::hook(0x867C5B, sys_getevent_stub, HOOK_JUMP).install()->quick();
-#endif
 
 #if DEBUG
 		// enable OutputDebugString --- oo
@@ -388,8 +542,12 @@ namespace components::sp
 #endif
 
 		// not needed?
-		utils::hook::set<BYTE>(0x4E79D0, 0xEB); // use 1 worker thread
+		//utils::hook::set<BYTE>(0x4E79D0, 0xEB); // use 1 worker thread
 
+
+		//utils::hook::set<BYTE>(0x6CAD89 + 1, 0x0); // min amount of workers
+		//utils::hook::set<BYTE>(0x82D1FD + 1, 0x0); // ^ min amount of workers
+		
 
 
 		// game_mod patches by nukem - https://github.com/Nukem9/LinkerMod/blob/development/components/game_mod/dllmain.cpp
