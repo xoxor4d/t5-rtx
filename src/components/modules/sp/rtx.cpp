@@ -26,6 +26,8 @@ namespace components::sp
 		// needed for skysphere
 		dev->SetRenderState(D3DRS_LIGHTING, FALSE);
 
+		rtx::force_dvars_on_frame();
+
 		if (!flags::has_flag("no_fog"))
 		{
 			const float fog_start = 1.0f;
@@ -56,6 +58,18 @@ namespace components::sp
 
 	// ------------------------
 
+	void rtx::force_dvars_on_frame()
+	{
+		dvars::bool_override("r_smp_backend", false);
+		dvars::bool_override("r_skinCache", false);
+		dvars::bool_override("r_fastSkin", false);
+		dvars::bool_override("r_smc_enable", false);
+		dvars::bool_override("r_depthPrepass", false);
+		dvars::bool_override("r_zfeather", false);
+		dvars::bool_override("r_dof_enable", false);
+		dvars::bool_override("r_distortion", false);
+	}
+
 	void rtx::set_dvar_defaults()
 	{
 		if (const auto var = Dvar_FindVar("r_lodScaleRigid"); var)
@@ -73,63 +87,11 @@ namespace components::sp
 			var->flags = game::dvar_flags::userinfo;
 		}
 
-		if (const auto var = Dvar_FindVar("r_skinCache"); var)
-		{
-			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
-		}
-
-		if (const auto var = Dvar_FindVar("r_fastSkin"); var)
-		{
-			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
-		}
-
-		if (const auto var = Dvar_FindVar("r_distortion"); var)
-		{
-			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
-		}
-
-		if (const auto var = Dvar_FindVar("r_depthprepass"); var)
-		{
-			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
-		}
-
-		if (const auto var = Dvar_FindVar("r_smc_enable"); var)
-		{
-			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
-		}
-
-		/*if (const auto var = Dvar_FindVar("r_pretess"); var)
-		{
-			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
-		}*/
-
-		if (const auto var = Dvar_FindVar("fx_marks"); var)
-		{
-			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
-		}
-
 		// really slowing the game down with FF effects
-		if (const auto var = Dvar_FindVar("fx_drawclouds"); var)
-		{
-			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
-		}
+		dvars::bool_override("fx_drawclouds", false);
 
-		// TODO: r_smp_backend - blocks input - freezes game
-
-		/*if (const auto var = Dvar_FindVar("r_smp_backend"); var)
-		{
-			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
-		}*/
-
-		/*if (const auto var = Dvar_FindVar("r_smp_worker"); var)
-		{
-			var->current.enabled = false; var->flags = game::dvar_flags::userinfo;
-		}*/
-
-		if (const auto var = Dvar_FindVar("sv_cheats"); var)
-		{
-			var->current.enabled = true; var->flags = game::dvar_flags::userinfo;
-		}
+		dvars::bool_override("r_pretess", false);
+		dvars::bool_override("sv_cheats", true);
 	}
 
 	__declspec(naked) void register_dvars_stub()
