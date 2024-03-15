@@ -5,12 +5,64 @@
 
 namespace game
 {
+	struct GfxPortal;
+	struct GfxCell;
 	struct GfxBackEndData;
 	struct GfxViewInfo;
 	typedef float vec_t;
 	typedef vec_t vec2_t[2];
 	typedef vec_t vec3_t[3];
 	typedef vec_t vec4_t[4];
+
+	enum $9FC675B7EFAE70B57C2B9C1C22A5CC63 : std::uint8_t
+	{
+		R_RENDERTARGET_NULL = 0x0,
+		R_RENDERTARGET_NONE = 0x0,
+		R_RENDERTARGET_SAVED_SCREEN = 0x1,
+		R_RENDERTARGET_FRAME_BUFFER = 0x2,
+		R_RENDERTARGET_SCENE = 0x3,
+		R_RENDERTARGET_SCENE_NULLCOLOR = 0x4,
+		R_RENDERTARGET_RESOLVED_POST_SUN = 0x5,
+		R_RENDERTARGET_RESOLVED_SCENE = 0x6,
+		R_RENDERTARGET_FLOAT_Z = 0x7,
+		R_RENDERTARGET_PINGPONG_0 = 0x8,
+		R_RENDERTARGET_PINGPONG_1 = 0x9,
+		R_RENDERTARGET_POST_EFFECT_SRC = 0xA,
+		R_RENDERTARGET_POST_EFFECT_GODRAYS = 0xB,
+		R_RENDERTARGET_POST_EFFECT_0 = 0xC,
+		R_RENDERTARGET_POST_EFFECT_1 = 0xD,
+		R_RENDERTARGET_SHADOWMAP_SUN = 0xE,
+		R_RENDERTARGET_SHADOWMAP_SPOT = 0xF,
+		R_RENDERTARGET_16BIT_SYSTEM = 0x10,
+		R_RENDERTARGET_8BIT_SYSTEM = 0x11,
+		R_RENDERTARGET_8BIT_SWAPCHAIN_BACKBUFFER = 0x12,
+		R_RENDERTARGET_SEETHRU_DECAL = 0x13,
+		R_RENDERTARGET_UI3D = 0x14,
+		R_RENDERTARGET_UI3D_PING_PONG = 0x15,
+		R_RENDERTARGET_MISSILE_CAM = 0x16,
+		R_RENDERTARGET_FLOAT_Z_MISSILE_CAM = 0x17,
+		R_RENDERTARGET_COMPOSITE = 0x18,
+		R_RENDERTARGET_BLOOM_MIP1 = 0x19,
+		R_RENDERTARGET_BLOOM_MIP2 = 0x1A,
+		R_RENDERTARGET_BLOOM_MIP3 = 0x1B,
+		R_RENDERTARGET_BLOOM_MIP3_PING = 0x1C,
+		R_RENDERTARGET_BLOOM_MIP3_PONG = 0x1D,
+		R_RENDERTARGET_BLOOM_STREAK = 0x1E,
+		R_RENDERTARGET_SHADOWMAP_SUN_HI_FULL = 0x1F,
+		R_RENDERTARGET_SHADOWMAP_SUN_HI_PARTITION_0 = 0x20,
+		R_RENDERTARGET_SHADOWMAP_SUN_HI_PARTITION_1 = 0x21,
+		R_RENDERTARGET_SHADOWMAP_SUN_LO_FULL = 0x22,
+		R_RENDERTARGET_SHADOWMAP_SUN_LO_PARTITION_0 = 0x23,
+		R_RENDERTARGET_SHADOWMAP_SUN_LO_PARTITION_1 = 0x24,
+		R_RENDERTARGET_SHADOWMAP_SPOT_FULL = 0x25,
+		R_RENDERTARGET_SHADOWMAP_SPOT_0 = 0x26,
+		R_RENDERTARGET_SHADOWMAP_SPOT_1 = 0x27,
+		R_RENDERTARGET_SHADOWMAP_SPOT_2 = 0x28,
+		R_RENDERTARGET_SHADOWMAP_SPOT_3 = 0x29,
+		R_RENDERTARGET_SHADOWMAP_SPOT_HI_0 = 0x2A,
+		R_RENDERTARGET_SHADOWMAP_SPOT_HI_1 = 0x2B,
+		R_RENDERTARGET_COUNT = 0x2C,
+	};
 
 	struct field_t
 	{
@@ -65,6 +117,39 @@ namespace game
 		float depthHackNearClip;
 		float zNear;
 		float zFar;
+	};
+
+	struct ScreenPlacement
+	{
+		float scaleVirtualToReal[2];
+		float scaleVirtualToFull[2];
+		float scaleRealToVirtual[2];
+		float virtualViewableMin[2];
+		float virtualViewableMax[2];
+		float virtualTweakableMin[2];
+		float virtualTweakableMax[2];
+		float realViewportBase[2];
+		float realViewportSize[2];
+		float realViewportMid[2];
+		float realViewableMin[2];
+		float realViewableMax[2];
+		float realTweakableMin[2];
+		float realTweakableMax[2];
+		float subScreen[2];
+	};
+
+	struct DpvsPlane
+	{
+		float coeffs[4];
+		char side[3];
+		char pad;
+	};
+
+	struct DpvsView
+	{
+		unsigned int renderFxFlagsCull;
+		DpvsPlane frustumPlanes[14];
+		int frustumPlaneCount;
 	};
 
 	struct GfxWindowTarget
@@ -968,6 +1053,95 @@ namespace game
 		GfxBackEndData* data;
 	};
 
+	struct GfxExposureValue
+	{
+		float blackPoint[4];
+		float whitePoint[4];
+		float linearStart[4];
+		float linearEnd[4];
+		float remapStart[4];
+		float remapEnd[4];
+		float scurveStart[4];
+		float scurveEnd[4];
+		float bloomCurveLDR[4];
+		float bloomCurveHDR[4];
+		float bloomScale[4];
+	};
+
+	struct GfxExposureShaderRemap
+	{
+		float remapMul[3];
+		float remapAdd[3];
+	};
+
+	struct GfxViewRenderControl
+	{
+		char mainSceneMSAA;
+		char mainScene;
+		char mainSceneFinal;
+		char mainSceneSaved;
+		char extraCam;
+		char ui3d;
+		char seeThruDecal;
+		char frameBuffer;
+		float sceneWindowU0;
+		float sceneWindowV0;
+		float sceneWindowU1;
+		float sceneWindowV1;
+		float framebufferWindowY0;
+		float framebufferWindowX1;
+		float framebufferWindowY1;
+		int opaqueShaderRemap;
+		int alphaShaderRemap;
+		int emissiveShaderRemap;
+		unsigned int renderingMode;
+		unsigned int additionalPostFX;
+	};
+
+	struct GfxBloom
+	{
+		float bloomTintWeights[4];
+		float bloomColorScale[4];
+		float bloomTintScale[4];
+		float bloomCurveBreakpoint[4];
+		float bloomCurveLoBlack[4];
+		float bloomCurveLoGamma[4];
+		float bloomCurveLoWhite[4];
+		float bloomCurveLoRemapBlack[4];
+		float bloomCurveLoRemapWhite[4];
+		float bloomCurveHiBlack[4];
+		float bloomCurveHiGamma[4];
+		float bloomCurveHiWhite[4];
+		float bloomCurveHiRemapBlack[4];
+		float bloomCurveHiRemapWhite[4];
+		float bloomExpansionControl[4];
+		float bloomExpansionWeights[4];
+		int bloomExpansionSource;
+		float bloomBlurRadius;
+		float bloomPersistence;
+		float bloomStreakXLevels0[4];
+		float bloomStreakXLevels1[4];
+		float bloomStreakXInnerTint[3];
+		float bloomStreakXOuterTint[3];
+		float bloomStreakXTintControl[4];
+		float bloomStreakXTint[3];
+		float bloomStreakYLevels0[4];
+		float bloomStreakYLevels1[4];
+		float bloomStreakYInnerTint[3];
+		float bloomStreakYOuterTint[3];
+		float bloomStreakYTintControl[4];
+		float bloomStreakYTint[3];
+	};
+
+	struct GfxUI3DBackend
+	{
+		GfxViewport viewport[6];
+		float uvSetup[6][4];
+		int renderCmdCount[6];
+		int totalRenderCmds;
+		float blurRadius;
+	};
+
 	struct __declspec(align(16)) GfxViewInfo
 	{
 		$E3A83F5AFE6B193109DAD0C9BAA28F2F u0;
@@ -1004,7 +1178,7 @@ namespace game
 		GfxCmdBufInput input;
 		int renderSeeThruDecals;
 		char hdrRenderingMode;
-		/*GfxExposureValue exposureValue;
+		GfxExposureValue exposureValue;
 		GfxExposureShaderRemap exposureRemap;
 		GfxViewRenderControl sceneComposition;
 		GfxBloom bloom;
@@ -1015,8 +1189,8 @@ namespace game
 		bool hasCmdBuf;
 		float postEmissiveBrightening;
 		bool noLodCullOut;
-		DynSModelClientView* dynSModelView;
-		DynSModelGfxState* dynSModelState;*/
+		//DynSModelClientView* dynSModelView;
+		//DynSModelGfxState* dynSModelState;
 	};
 
 	const struct __declspec(align(32)) GfxBackEndData
@@ -1264,6 +1438,40 @@ namespace game
 		cplane_s* planes;
 		unsigned __int16* nodes;
 		unsigned int* sceneEntCellBits;
+	};
+
+	struct DpvsGlob_sunShadow
+	{
+		float viewDir[3];
+		float viewDirDist;
+		float sunShadowDrawDist;
+	};
+
+	struct DpvsGlob
+	{
+		DpvsPlane nearPlane;
+		DpvsPlane farPlane;
+		bool farPlaneEnabled;
+		GfxMatrix* viewProjMtx;
+		GfxMatrix* invViewProjMtx;
+		GfxMatrix* projMtx;
+		float viewOrg[4];
+		int viewOrgIsDir;
+		DpvsGlob_sunShadow sunShadow;
+		int queuedCount;
+		void* portalQueue;
+		void* nextFreeHullPoints;
+		float cullDist;
+		int pad[3];
+		DpvsPlane childPlanes[2048];
+		DpvsView views[4][3];
+		DpvsPlane* sideFrustumPlanes;
+		unsigned int* entVisBits[4];
+		unsigned int* cellCasterBitsForCell;
+		unsigned int cellVisibleBits[32];
+		unsigned int cellForceInvisibleBits[32];
+		__declspec(align(16)) float occluderPlanes[320][4];
+		int numOccluders;
 	};
 
 	struct GfxWorldVertex
@@ -1600,7 +1808,7 @@ namespace game
 		GfxSkyDynamicIntensity skyDynIntensity;
 		GfxWorldDpvsPlanes dpvsPlanes;
 		int cellBitsCount;
-		void* cells; // GfxCell
+		GfxCell* cells;
 		GfxWorldDraw draw;
 		GfxLightGrid lightGrid;
 		int modelCount;
@@ -1719,7 +1927,6 @@ namespace game
 		$35D977DB71E523C40A6AAD0369DD9EE3 u;
 	};
 
-
 	struct GfxModelRigidSurface
 	{
 		GfxModelSkinnedSurface surf;
@@ -1732,13 +1939,59 @@ namespace game
 		GfxCmdBufState* state;
 	};
 
-
 	struct GfxDrawSurfListArgs
 	{
 		GfxCmdBufContext context;
 		unsigned int firstDrawSurfIndex;
 		GfxDrawSurfListInfo* info;
 	};
+
+	struct GfxAabbTree
+	{
+		float mins[3];
+		float maxs[3];
+		unsigned __int16 childCount;
+		unsigned __int16 surfaceCount;
+		unsigned __int16 startSurfIndex;
+		unsigned __int16 smodelIndexCount;
+		unsigned __int16* smodelIndexes;
+		int childrenOffset;
+	};
+
+	struct GfxPortalWritable
+	{
+		bool isQueued;
+		bool isAncestor;
+		char recursionDepth;
+		char hullPointCount;
+		float(*hullPoints)[2];
+		GfxPortal* queuedParent;
+	};
+
+	struct GfxPortal
+	{
+		GfxPortalWritable writable;
+		DpvsPlane plane;
+		GfxCell* cell;
+		float(*vertices)[3];
+		char vertexCount;
+		float hullAxis[2][3];
+	};
+
+	struct GfxCell
+	{
+		float mins[3];
+		float maxs[3];
+		int aabbTreeCount;
+		GfxAabbTree* aabbTree;
+		int portalCount;
+		GfxPortal* portals;
+		int cullGroupCount;
+		int* cullGroups;
+		char reflectionProbeCount;
+		char* reflectionProbes;
+	};
+
 
 	struct __declspec(align(8)) SkinXModelCmd
 	{
@@ -1891,6 +2144,82 @@ namespace game
 	};
 #pragma warning(pop)
 
+	// codetextures
+	enum MaterialTextureSource
+	{
+		TEXTURE_SRC_CODE_BLACK = 0x0,
+		TEXTURE_SRC_CODE_WHITE = 0x1,
+		TEXTURE_SRC_CODE_IDENTITY_NORMAL_MAP = 0x2,
+		TEXTURE_SRC_CODE_MODEL_LIGHTING = 0x3,
+		TEXTURE_SRC_CODE_LIGHTMAP_PRIMARY = 0x4,
+		TEXTURE_SRC_CODE_LIGHTMAP_SECONDARY = 0x5,
+		TEXTURE_SRC_CODE_SHADOWMAP_SUN = 0x6,
+		TEXTURE_SRC_CODE_SHADOWMAP_SPOT = 0x7,
+		TEXTURE_SRC_CODE_FEEDBACK = 0x8,
+		TEXTURE_SRC_CODE_RESOLVED_POST_SUN = 0x9,
+		TEXTURE_SRC_CODE_RESOLVED_SCENE = 0xA,
+		TEXTURE_SRC_CODE_POST_EFFECT_SRC = 0xB,
+		TEXTURE_SRC_CODE_POST_EFFECT_GODRAYS = 0xC,
+		TEXTURE_SRC_CODE_POST_EFFECT_0 = 0xD,
+		TEXTURE_SRC_CODE_POST_EFFECT_1 = 0xE,
+		TEXTURE_SRC_CODE_SKY = 0xF,
+		TEXTURE_SRC_CODE_LIGHT_ATTENUATION = 0x10,
+		TEXTURE_SRC_CODE_DLIGHT_ATTENUATION = 0x11,
+		TEXTURE_SRC_CODE_OUTDOOR = 0x12,
+		TEXTURE_SRC_CODE_FLOATZ = 0x13,
+		TEXTURE_SRC_CODE_PROCESSED_FLOATZ = 0x14,
+		TEXTURE_SRC_CODE_RAW_FLOATZ = 0x15,
+		TEXTURE_SRC_CODE_CASE_TEXTURE = 0x16,
+		TEXTURE_SRC_CODE_CINEMATIC_Y = 0x17,
+		TEXTURE_SRC_CODE_CINEMATIC_CR = 0x18,
+		TEXTURE_SRC_CODE_CINEMATIC_CB = 0x19,
+		TEXTURE_SRC_CODE_CINEMATIC_A = 0x1A,
+		TEXTURE_SRC_CODE_REFLECTION_PROBE = 0x1B,
+		TEXTURE_SRC_CODE_FEATHER_FLOAT_Z = 0x1C,
+		TEXTURE_SRC_CODE_TERRAIN_SCORCH_TEXTURE_0 = 0x1D,
+		TEXTURE_SRC_CODE_TERRAIN_SCORCH_TEXTURE_1 = 0x1E,
+		TEXTURE_SRC_CODE_TERRAIN_SCORCH_TEXTURE_2 = 0x1F,
+		TEXTURE_SRC_CODE_TERRAIN_SCORCH_TEXTURE_3 = 0x20,
+		TEXTURE_SRC_CODE_TERRAIN_SCORCH_TEXTURE_LAST = 0x20,
+		TEXTURE_SRC_CODE_LIGHTMAP_SECONDARYB = 0x21,
+		TEXTURE_SRC_CODE_TEXTURE_0 = 0x22,
+		TEXTURE_SRC_CODE_TEXTURE_1 = 0x23,
+		TEXTURE_SRC_CODE_TEXTURE_2 = 0x24,
+		TEXTURE_SRC_CODE_TEXTURE_3 = 0x25,
+		TEXTURE_SRC_CODE_IMPACT_MASK = 0x26,
+		TEXTURE_SRC_CODE_UI3D = 0x27,
+		TEXTURE_SRC_CODE_MISSILE_CAM = 0x28,
+		TEXTURE_SRC_CODE_COMPOSITE_RESULT = 0x29,
+		TEXTURE_SRC_CODE_HEATMAP = 0x2A,
+		TEXTURE_SRC_CODE_COUNT = 0x2B,
+	};
+
+	struct GfxRenderTargetSurface
+	{
+		IDirect3DSurface9* color;
+		IDirect3DSurface9* depthStencil;
+	};
+
+	struct Ui3dTextureWindow
+	{
+		GfxViewport vp;
+		ScreenPlacement scrPlace;
+		float normX;
+		float normY;
+		float normW;
+		float normH;
+		int numRenderCmds;
+	};
+
+	struct GfxRenderTarget
+	{
+		GfxImage* image;
+		GfxRenderTargetSurface surface;
+		unsigned __int16 width;
+		unsigned __int16 height;
+		bool cleared;
+	};
+
 	enum sysEventType_t
 	{
 		SE_NONE = 0x0,
@@ -2009,6 +2338,162 @@ namespace game
 		dvar_s* hashNext;
 	};
 
+	enum MaterialTechniqueType : std::uint8_t
+	{
+		TECHNIQUE_DEPTH_PREPASS = 0x0,
+		TECHNIQUE_BUILD_FLOAT_Z = 0x1,
+		TECHNIQUE_BUILD_SHADOWMAP_DEPTH = 0x2,
+		TECHNIQUE_BUILD_SHADOWMAP_COLOR = 0x3,
+		TECHNIQUE_UNLIT = 0x4,
+		TECHNIQUE_EMISSIVE = 0x5,
+		TECHNIQUE_EMISSIVE_SHADOW = 0x6,
+		TECHNIQUE_EMISSIVE_NV_INTZ = 0x7,
+		TECHNIQUE_EMISSIVE_SHADOW_NV_INTZ = 0x8,
+		TECHNIQUE_EMISSIVE_REFLECTED = 0x9,
+		TECHNIQUE_LIT_BEGIN = 0xA,
+		TECHNIQUE_LIT = 0xA,
+		TECHNIQUE_LIT_SUN = 0xB,
+		TECHNIQUE_LIT_SUN_SHADOW = 0xC,
+		TECHNIQUE_LIT_SPOT = 0xD,
+		TECHNIQUE_LIT_SPOT_SHADOW = 0xE,
+		TECHNIQUE_LIT_OMNI = 0xF,
+		TECHNIQUE_LIT_OMNI_SHADOW = 0x10,
+		TECHNIQUE_LIT_DLIGHT = 0x11,
+		TECHNIQUE_LIT_SUN_DLIGHT = 0x12,
+		TECHNIQUE_LIT_SUN_SHADOW_DLIGHT = 0x13,
+		TECHNIQUE_LIT_SPOT_DLIGHT = 0x14,
+		TECHNIQUE_LIT_SPOT_SHADOW_DLIGHT = 0x15,
+		TECHNIQUE_LIT_OMNI_DLIGHT = 0x16,
+		TECHNIQUE_LIT_OMNI_SHADOW_DLIGHT = 0x17,
+		TECHNIQUE_LIT_GLIGHT = 0x18,
+		TECHNIQUE_LIT_SUN_GLIGHT = 0x19,
+		TECHNIQUE_LIT_SUN_SHADOW_GLIGHT = 0x1A,
+		TECHNIQUE_LIT_SPOT_GLIGHT = 0x1B,
+		TECHNIQUE_LIT_SPOT_SHADOW_GLIGHT = 0x1C,
+		TECHNIQUE_LIT_OMNI_GLIGHT = 0x1D,
+		TECHNIQUE_LIT_OMNI_SHADOW_GLIGHT = 0x1E,
+		TECHNIQUE_LIT_DLIGHT_GLIGHT = 0x1F,
+		TECHNIQUE_LIT_SUN_DLIGHT_GLIGHT = 0x20,
+		TECHNIQUE_LIT_SUN_SHADOW_DLIGHT_GLIGHT = 0x21,
+		TECHNIQUE_LIT_SPOT_DLIGHT_GLIGHT = 0x22,
+		TECHNIQUE_LIT_SPOT_SHADOW_DLIGHT_GLIGHT = 0x23,
+		TECHNIQUE_LIT_OMNI_DLIGHT_GLIGHT = 0x24,
+		TECHNIQUE_LIT_OMNI_SHADOW_DLIGHT_GLIGHT = 0x25,
+		TECHNIQUE_LIT_ALPHA = 0x26,
+		TECHNIQUE_LIT_SUN_ALPHA = 0x27,
+		TECHNIQUE_LIT_SUN_SHADOW_ALPHA = 0x28,
+		TECHNIQUE_LIT_SPOT_ALPHA = 0x29,
+		TECHNIQUE_LIT_SPOT_SHADOW_ALPHA = 0x2A,
+		TECHNIQUE_LIT_OMNI_ALPHA = 0x2B,
+		TECHNIQUE_LIT_OMNI_SHADOW_ALPHA = 0x2C,
+		TECHNIQUE_LIT_REMAP = 0x2D,
+		TECHNIQUE_LIT_SUN_REMAP = 0x2E,
+		TECHNIQUE_LIT_SUN_SHADOW_REMAP = 0x2F,
+		TECHNIQUE_LIT_SPOT_REMAP = 0x30,
+		TECHNIQUE_LIT_SPOT_SHADOW_REMAP = 0x31,
+		TECHNIQUE_LIT_OMNI_REMAP = 0x32,
+		TECHNIQUE_LIT_OMNI_SHADOW_REMAP = 0x33,
+		TECHNIQUE_LIT_NO_HDR_SUPPORT = 0x34,
+		TECHNIQUE_LIT_FADE = 0x34,
+		TECHNIQUE_LIT_SUN_FADE = 0x35,
+		TECHNIQUE_LIT_SUN_SHADOW_FADE = 0x36,
+		TECHNIQUE_LIT_SPOT_FADE = 0x37,
+		TECHNIQUE_LIT_SPOT_SHADOW_FADE = 0x38,
+		TECHNIQUE_LIT_OMNI_FADE = 0x39,
+		TECHNIQUE_LIT_OMNI_SHADOW_FADE = 0x3A,
+		TECHNIQUE_LIT_CHARRED = 0x3B,
+		TECHNIQUE_LIT_FADE_CHARRED = 0x3C,
+		TECHNIQUE_LIT_SUN_CHARRED = 0x3D,
+		TECHNIQUE_LIT_SUN_FADE_CHARRED = 0x3E,
+		TECHNIQUE_LIT_SUN_SHADOW_CHARRED = 0x3F,
+		TECHNIQUE_LIT_SUN_SHADOW_FADE_CHARRED = 0x40,
+		TECHNIQUE_LIT_SPOT_CHARRED = 0x41,
+		TECHNIQUE_LIT_SPOT_FADE_CHARRED = 0x42,
+		TECHNIQUE_LIT_SPOT_SHADOW_CHARRED = 0x43,
+		TECHNIQUE_LIT_SPOT_SHADOW_FADE_CHARRED = 0x44,
+		TECHNIQUE_LIT_OMNI_CHARRED = 0x45,
+		TECHNIQUE_LIT_OMNI_FADE_CHARRED = 0x46,
+		TECHNIQUE_LIT_OMNI_SHADOW_CHARRED = 0x47,
+		TECHNIQUE_LIT_OMNI_SHADOW_FADE_CHARRED = 0x48,
+		TECHNIQUE_LIT_INSTANCED = 0x49,
+		TECHNIQUE_LIT_INSTANCED_SUN = 0x4A,
+		TECHNIQUE_LIT_INSTANCED_SUN_SHADOW = 0x4B,
+		TECHNIQUE_LIT_INSTANCED_SPOT = 0x4C,
+		TECHNIQUE_LIT_INSTANCED_SPOT_SHADOW = 0x4D,
+		TECHNIQUE_LIT_INSTANCED_OMNI = 0x4E,
+		TECHNIQUE_LIT_INSTANCED_OMNI_SHADOW = 0x4F,
+		TECHNIQUE_LIT_NV_BEGIN = 0x50,
+		TECHNIQUE_LIT_NV_INTZ = 0x50,
+		TECHNIQUE_LIT_SUN_NV_INTZ = 0x51,
+		TECHNIQUE_LIT_SUN_SHADOW_NV_INTZ = 0x52,
+		TECHNIQUE_LIT_SPOT_NV_INTZ = 0x53,
+		TECHNIQUE_LIT_SPOT_SHADOW_NV_INTZ = 0x54,
+		TECHNIQUE_LIT_OMNI_NV_INTZ = 0x55,
+		TECHNIQUE_LIT_OMNI_SHADOW_NV_INTZ = 0x56,
+		TECHNIQUE_LIT_DLIGHT_NV_INTZ = 0x57,
+		TECHNIQUE_LIT_SUN_DLIGHT_NV_INTZ = 0x58,
+		TECHNIQUE_LIT_SUN_SHADOW_DLIGHT_NV_INTZ = 0x59,
+		TECHNIQUE_LIT_SPOT_DLIGHT_NV_INTZ = 0x5A,
+		TECHNIQUE_LIT_SPOT_SHADOW_DLIGHT_NV_INTZ = 0x5B,
+		TECHNIQUE_LIT_OMNI_DLIGHT_NV_INTZ = 0x5C,
+		TECHNIQUE_LIT_OMNI_SHADOW_DLIGHT_NV_INTZ = 0x5D,
+		TECHNIQUE_LIT_GLIGHT_NV_INTZ = 0x5E,
+		TECHNIQUE_LIT_SUN_GLIGHT_NV_INTZ = 0x5F,
+		TECHNIQUE_LIT_SUN_SHADOW_GLIGHT_NV_INTZ = 0x60,
+		TECHNIQUE_LIT_SPOT_GLIGHT_NV_INTZ = 0x61,
+		TECHNIQUE_LIT_SPOT_SHADOW_GLIGHT_NV_INTZ = 0x62,
+		TECHNIQUE_LIT_OMNI_GLIGHT_NV_INTZ = 0x63,
+		TECHNIQUE_LIT_OMNI_SHADOW_GLIGHT_NV_INTZ = 0x64,
+		TECHNIQUE_LIT_DLIGHT_GLIGHT_NV_INTZ = 0x65,
+		TECHNIQUE_LIT_SUN_DLIGHT_GLIGHT_NV_INTZ = 0x66,
+		TECHNIQUE_LIT_SUN_SHADOW_DLIGHT_GLIGHT_NV_INTZ = 0x67,
+		TECHNIQUE_LIT_SPOT_DLIGHT_GLIGHT_NV_INTZ = 0x68,
+		TECHNIQUE_LIT_SPOT_SHADOW_DLIGHT_GLIGHT_NV_INTZ = 0x69,
+		TECHNIQUE_LIT_OMNI_DLIGHT_GLIGHT_NV_INTZ = 0x6A,
+		TECHNIQUE_LIT_OMNI_SHADOW_DLIGHT_GLIGHT_NV_INTZ = 0x6B,
+		TECHNIQUE_LIT_INSTANCED_NV_INTZ = 0x6C,
+		TECHNIQUE_LIT_INSTANCED_SUN_NV_INTZ = 0x6D,
+		TECHNIQUE_LIT_INSTANCED_SUN_SHADOW_NV_INTZ = 0x6E,
+		TECHNIQUE_LIT_INSTANCED_SPOT_NV_INTZ = 0x6F,
+		TECHNIQUE_LIT_INSTANCED_SPOT_SHADOW_NV_INTZ = 0x70,
+		TECHNIQUE_LIT_INSTANCED_OMNI_NV_INTZ = 0x71,
+		TECHNIQUE_LIT_INSTANCED_OMNI_SHADOW_NV_INTZ = 0x72,
+		TECHNIQUE_LIT_NV_END = 0x73,
+		TECHNIQUE_LIT_END = 0x73,
+		TECHNIQUE_LIGHT_SPOT = 0x73,
+		TECHNIQUE_LIGHT_OMNI = 0x74,
+		TECHNIQUE_LIGHT_SPOT_SHADOW = 0x75,
+		TECHNIQUE_LIGHT_SPOT_CHARRED = 0x76,
+		TECHNIQUE_LIGHT_OMNI_CHARRED = 0x77,
+		TECHNIQUE_LIGHT_SPOT_SHADOW_CHARRED = 0x78,
+		TECHNIQUE_FAKELIGHT_NORMAL = 0x79,
+		TECHNIQUE_FAKELIGHT_VIEW = 0x7A,
+		TECHNIQUE_SUNLIGHT_PREVIEW = 0x7B,
+		TECHNIQUE_CASE_TEXTURE = 0x7C,
+		TECHNIQUE_WIREFRAME_SOLID = 0x7D,
+		TECHNIQUE_WIREFRAME_SHADED = 0x7E,
+		TECHNIQUE_DEBUG_BUMPMAP = 0x7F,
+		TECHNIQUE_DEBUG_BUMPMAP_INSTANCED = 0x80,
+		TECHNIQUE_IMPACT_MASK = 0x81,
+		TECHNIQUE_COUNT = 0x82,
+		TECHNIQUE_TOTAL_COUNT = 0x83,
+		TECHNIQUE_NONE = 0xFF,
+	};
+
+	struct switch_material_t
+	{
+		bool switch_material;
+		bool switch_technique;
+		bool switch_technique_type;
+
+		Material* current_material;
+		MaterialTechnique* current_technique;
+
+		Material* material;
+		MaterialTechnique* technique;
+
+		MaterialTechniqueType technique_type;
+	};
 
 	// ------------------------------------------------------------------------------------------------------------
 	// ############################################################################################################

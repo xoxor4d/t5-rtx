@@ -2,7 +2,10 @@
 
 namespace dvars
 {
-	//extern game::dvar_s* fx_cull_elem_draw_radius;
+	extern game::dvar_s* fx_cull_elem_draw_radius;
+	extern game::dvar_s* rtx_disable_world_culling;
+	extern game::dvar_s* rtx_disable_entity_culling;
+	extern game::dvar_s* rtx_sky_follow_player;
 
 	void bool_override(const char* dvarName, const bool& value, const game::dvar_flags& flags = game::saved);
 	void int_override(const char* dvarName, const int& value, const game::dvar_flags& flags = game::saved, const bool& limits = false, const int& mins = 0, const int& maxs = 0);

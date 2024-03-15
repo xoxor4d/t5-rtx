@@ -37,6 +37,25 @@ namespace components::sp
 			dev->SetRenderState(D3DRS_FOGSTART, *(DWORD*)(&fog_start));
 			dev->SetRenderState(D3DRS_FOGEND, *(DWORD*)(&map_settings::m_max_distance));
 		}
+
+#if 0
+		// update culling vars at the end of a frame (so we don't change culling behaviour mid-frame -> not safe)
+		{
+			// update world culling
+			if (dvars::rtx_disable_world_culling)
+			{
+				rtx::loc_disable_world_culling = dvars::rtx_disable_world_culling->current.integer;
+				rtx::loc_disable_world_culling = rtx::loc_disable_world_culling < 0 ? 0 :
+					rtx::loc_disable_world_culling > 3 ? 3 : rtx::loc_disable_world_culling;
+			}
+
+			// update entity culling
+			/*if (dvars::rtx_disable_entity_culling)
+			{
+				rtx::loc_disable_entity_culling = dvars::rtx_disable_entity_culling->current.enabled ? 1 : 0;
+			}*/
+		}
+#endif
 	}
 
 	__declspec(naked) void r_renderscene_stub()
@@ -65,13 +84,24 @@ namespace components::sp
 		dvars::bool_override("r_fastSkin", false);
 		dvars::bool_override("r_smc_enable", false);
 		dvars::bool_override("r_depthPrepass", false);
-		dvars::bool_override("r_zfeather", false);
 		dvars::bool_override("r_dof_enable", false);
 		dvars::bool_override("r_distortion", false);
 	}
 
 	void rtx::set_dvar_defaults()
 	{
+#if 0
+		dvars::rtx_disable_world_culling = game::sp::Dvar_RegisterEnum(
+			/* name		*/ "rtx_disable_world_culling",
+			/* enumData */ rtx::rtx_disable_world_culling_enum,
+			/* default	*/ 1,
+			/* flags	*/ game::dvar_flags::saved,
+			/* desc		*/ "Disable world culling. 'all' is needed for stable geometry hashes!\n"
+			"- less: reduces culling to portals only (unstable world geo hashes!)\n"
+			"- all: disable culling of all surfaces including models\n"
+			"- all-but-models: disable culling of all surfaces excluding models");
+#endif
+
 		if (const auto var = Dvar_FindVar("r_lodScaleRigid"); var)
 		{
 			var->current.value = 1.0f;
@@ -87,10 +117,11 @@ namespace components::sp
 			var->flags = game::dvar_flags::userinfo;
 		}
 
-		// really slowing the game down with FF effects
+		// really slowing the game down with clouds rendered via shaders
 		dvars::bool_override("fx_drawclouds", false);
 
-		dvars::bool_override("r_pretess", false);
+		dvars::bool_override("r_pretess", true);
+		dvars::bool_override("r_smp_worker", true);
 		dvars::bool_override("sv_cheats", true);
 	}
 
@@ -110,101 +141,211 @@ namespace components::sp
 		}
 	}
 
-	// *
-	// load custom fastfile containing required custom assets
+	namespace cull
+	{
+		int _last_active_valid_cell = -1;
 
-	//void load_common_fast_files()
-	//{
-	//	const char** zone_code_post_gfx = reinterpret_cast<const char**>(0x3BF6800);
-	//	const char** zone_patch = reinterpret_cast<const char**>(0x3BF6804);
-	//	const char** zone_ui = reinterpret_cast<const char**>(0x3BF6808);
-	//	const char** zone_common = reinterpret_cast<const char**>(0x3BF680C);
-	//	const char** zone_localized_common = reinterpret_cast<const char**>(0x3BF6814);
-	//	const char** zone_mod = reinterpret_cast<const char**>(0x3BF6818);
+		void R_AddWorldSurfacesPortalWalk_hk(int camera_cell_index, game::DpvsView* dpvs)
+		{
+			const auto dpvsGlob = reinterpret_cast<game::DpvsGlob*>(0x3957100);
 
-	//	int i = 0;
-	//	game::XZoneInfo xzone_info_stack[8];
+			// never show the complete map, only the last valid cell
+			if (camera_cell_index < 0)
+			{
+				const auto cell = &game::sp::rgp->world->cells[_last_active_valid_cell];
+				const auto cell_index = cell - game::sp::rgp->world->cells;
+				game::sp::R_AddCellSurfacesAndCullGroupsInFrustumDelayed(cell, dpvs->frustumPlanes, dpvs->frustumPlaneCount, dpvs->frustumPlaneCount);
+				dpvsGlob->cellVisibleBits[(cell_index >> 5) + 3] |= (1 << (cell_index & 0x1F)) & ~((1 << (cell_index & 0x1F)) & dpvsGlob->cellForceInvisibleBits[(cell_index >> 5) + 3]);
+			}
+			else
+			{
+				_last_active_valid_cell = camera_cell_index;
 
-	//	// ------------------------------------
+				// always add full cell the player is in (same as r_singlecell)
+				const auto cell = &game::sp::rgp->world->cells[camera_cell_index];
+				const auto cell_index = cell - game::sp::rgp->world->cells;
 
-	//	xzone_info_stack[i].name = *zone_code_post_gfx;
-	//	xzone_info_stack[i].allocFlags = 4;
-	//	xzone_info_stack[i].freeFlags = 0;
-	//	++i;
 
-	//	// ------------------------------------
+				/*dpvsGlob->views[0][0].frustumPlanes[0].coeffs[3] += 5000.0f;
+				...
+				dpvsGlob->views[0][0].frustumPlanes[4].coeffs[3] += 5000.0f;
+				dpvsGlob->nearPlane.coeffs[2] += 0.5f;
+				dpvsGlob->nearPlane.coeffs[3] -= 0.5f;*/
 
-	//	// unused in sp
-	//	/*if (zone_localized_code_post_gfx)
-	//	{
-	//		xzone_info_stack[i].name = *game::zone_localized_code_post_gfx_mp;
-	//		xzone_info_stack[i].allocFlags = game::XZONE_FLAGS::XZONE_LOC_POST_GFX;
-	//		xzone_info_stack[i].freeFlags = game::XZONE_FLAGS::XZONE_LOC_POST_GFX_FREE;
-	//		++i;
-	//	}*/
+				// hack - disable most frustum culling
+				dpvsGlob->views[0][0].frustumPlanes[0].coeffs[3] += 5000.0f;
+				dpvsGlob->views[0][0].frustumPlanes[1].coeffs[3] += 5000.0f;
+				dpvsGlob->views[0][0].frustumPlanes[2].coeffs[3] += 5000.0f;
+				dpvsGlob->views[0][0].frustumPlanes[3].coeffs[3] += 5000.0f;
+				dpvsGlob->views[0][0].frustumPlanes[4].coeffs[3] += 5000.0f;
+				dpvsGlob->views[0][0].frustumPlanes[5].coeffs[3] += 5000.0f;
+				dpvsGlob->nearPlane.coeffs[3] += 5000.0f; 
 
-	//	if (*zone_mod)
-	//	{
-	//		xzone_info_stack[i].name = *zone_mod;
-	//		xzone_info_stack[i].allocFlags = 0x800;
-	//		xzone_info_stack[i].freeFlags = 0;
-	//		++i;
+				game::sp::R_AddCellSurfacesAndCullGroupsInFrustumDelayed(cell, dpvs->frustumPlanes, dpvs->frustumPlaneCount, dpvs->frustumPlaneCount); // dpvs->frustumPlaneCount
+				dpvsGlob->cellVisibleBits[(cell_index >> 5) + 3] |= (1 << (cell_index & 0x1F)) & ~((1 << (cell_index & 0x1F)) & dpvsGlob->cellForceInvisibleBits[(cell_index >> 5) + 3]);
 
-	//		game::sp::DB_LoadXAssets(&xzone_info_stack[0], i, 0);
+				// R_VisitPortals
+				utils::hook::call<void(__cdecl)(game::GfxCell*, game::DpvsPlane*, game::DpvsPlane*, int)>(0x6B3DA0)(cell, &dpvsGlob->nearPlane, dpvs->frustumPlanes, dpvs->frustumPlaneCount);
+			}
+		}
 
-	//		utils::hook::call<void(__cdecl)()>(0x6F6CE0)(); // R_BeginRemoteScreenUpdate
-	//		utils::hook::call<void(__cdecl)()>(0x5A3320)(); // no clue
-	//		utils::hook::call<void(__cdecl)()>(0x6F6D60)(); // R_EndRemoteScreenUpdate
-	//		utils::hook::call<void(__cdecl)()>(0x5FDBF0)(); // no clue
-	//		utils::hook::call<void(__cdecl)()>(0x48E560)(); // DB_SyncXAssets
+		__declspec(naked) void cell_stub()
+		{
+			const static uint32_t retn_addr = 0x6B6016;
+			__asm
+			{
+				// ebx = world
+				// esi = cameraCellIndex
+				// eax = DpvsView
 
-	//		// start a new zone stack
-	//		i = 0;
-	//	}
+				push	eax;
+				push	esi;
+				call	R_AddWorldSurfacesPortalWalk_hk;
+				add		esp, 8;
+				jmp		retn_addr;
+			}
+		}
 
-	//	if (game::sp::DB_FileExists("xcommon_rtx", game::DB_FILE_EXISTS_PATH::DB_PATH_ZONE))
-	//	{
-	//		xzone_info_stack[i].name = "xcommon_rtx";
-	//		xzone_info_stack[i].allocFlags = 4;
-	//		xzone_info_stack[i].freeFlags = 0;
-	//		++i;
-	//	}
+#if 0
+		// R_AddWorldSurfacesPortalWalk
+		__declspec(naked) void world_stub_01()
+		{
+			const static uint32_t retn_skip = 0x6B601C;
+			const static uint32_t retn_stock = 0x6B5FB3;
+			__asm
+			{
+				// jump if culling is less or disabled
+				cmp		rtx::loc_disable_world_culling, 1;
+				jge		SKIP;
 
-	//	// ---------------------------------------------------------------------------------------------------------
+				// og code
+				mov		[esp + 0x10], eax;
+				test    esi, esi
+				jmp		retn_stock;
 
-	//	if (*zone_ui) // not loaded when starting dedicated servers
-	//	{
-	//		xzone_info_stack[i].name = *zone_ui;
-	//		xzone_info_stack[i].allocFlags = 16;
-	//		xzone_info_stack[i].freeFlags = 0;
-	//		++i;
-	//	}
+			SKIP:
+				mov		[esp + 0x10], eax;
+				jmp		retn_skip;
+			}
+		}
 
-	//	if (*zone_localized_common) // not loaded on when starting dedicated servers
-	//	{
-	//		xzone_info_stack[i].name = *zone_localized_common;
-	//		xzone_info_stack[i].allocFlags = 1;
-	//		xzone_info_stack[i].freeFlags = 0;
-	//		++i;
-	//	}
+		int _skipped_cull = 0; // helper var
+		__declspec(naked) void world_stub_02_reset_helper()
+		{
+			const static uint32_t retn_stock = 0x711BC2;
+			__asm
+			{
+				mov		_skipped_cull, 0;
+				mov     edx, esi;
+				mov		[ecx + 0xC], ebx;
+				jmp		retn_stock;
+			}
+		}
 
-	//	xzone_info_stack[i].name = *zone_common;
-	//	xzone_info_stack[i].allocFlags = 8;
-	//	xzone_info_stack[i].freeFlags = 0;
-	//	++i;
+		__declspec(naked) void world_stub_02_skip_static_model()
+		{
+			const static uint32_t retn_stock = 0x72167A;
+			const static uint32_t retn_stock_jumped = 0x72169D;
+			__asm
+			{
+				// do we want to cull static models the way geo would be culled?
+				cmp		rtx::loc_disable_world_culling, 3;
+				jl		STOCK;
 
-	//	if (*zone_patch) // not loaded on when starting dedicated servers
-	//	{
-	//		xzone_info_stack[i].name = *zone_patch;
-	//		xzone_info_stack[i].allocFlags = 512;
-	//		xzone_info_stack[i].freeFlags = 0;
-	//		++i;
-	//	}
+				// did we skip the culling check in 'r_cull_world_stub_02'?
+				cmp		_skipped_cull, 1;
+				je		SKIP;
 
-	//	// ------------------------------------
+			STOCK:		// og code
+				test    ecx, ecx;
+				jz		loc_72169D;
+				mov     edx, [edi + 0x20];
+				jmp		retn_stock;
 
-	//	game::sp::DB_LoadXAssets(&xzone_info_stack[0], i, 0);
-	//}
+			loc_72169D: // og code
+				jmp		retn_stock_jumped;
+
+
+			SKIP:		// skip static model rendering
+				mov     edx, [edi + 0x20];
+				jmp		retn_stock_jumped;
+			}
+		}
+
+		// R_AddAabbTreeSurfacesInFrustum_r
+		__declspec(naked) void world_stub_02()
+		{
+			const static uint32_t retn_skip = 0x7215DF;
+			const static uint32_t retn_stock = 0x7215D9;
+			__asm
+			{
+				// jump if culling is disabled
+				cmp		rtx::loc_disable_world_culling, 2;
+				jge		SKIP;
+
+				// og code
+				addss   xmm5, xmm6;
+				comiss  xmm4, xmm5;
+				jmp		retn_stock;
+
+			SKIP: // jumped here because culling is disabled 
+				addss   xmm5, xmm6;
+				comiss  xmm4, xmm5;
+				jnb		HACKED_CULLING;
+				jmp		retn_skip;
+
+			HACKED_CULLING: // jumped here because the game would have culled this object
+				mov		_skipped_cull, 1;
+				jmp		retn_skip;
+			}
+		}
+
+		// R_AddAabbTreeSurfacesInFrustum_r
+		__declspec(naked) void world_stub_03()
+		{
+			const static uint32_t retn_skip = 0x721645;
+			const static uint32_t retn_stock = 0x721615;
+			__asm
+			{
+				// jump if culling is less or disabled
+				cmp		rtx::loc_disable_world_culling, 1;
+				jge		SKIP;
+
+				// og code
+				addss   xmm5, xmm0;
+				comiss  xmm5, xmm4;
+				jmp		retn_stock;
+
+			SKIP:
+				addss   xmm5, xmm0;
+				comiss  xmm5, xmm4;
+				jmp		retn_skip;
+			}
+		}
+
+		// R_AddCellSceneEntSurfacesInFrustumCmd
+		__declspec(naked) void entities_stub()
+		{
+			const static uint32_t retn_skip = 0x74A31B;
+			const static uint32_t retn_stock = 0x74A315;
+			__asm
+			{
+				cmp		rtx::loc_disable_entity_culling, 1;
+				je		SKIP;
+
+				// stock op's
+				and		[esp + 0xC], esi;
+				mov     esi, [esp + 0x4C];
+				jmp		retn_stock;
+
+			SKIP:
+				and		[esp + 0xC], esi;
+				mov     esi, [esp + 0x4C];
+				jmp		retn_skip;
+			}
+		}
+#endif
+	}
 
 	rtx::rtx()
 	{
@@ -214,57 +355,73 @@ namespace components::sp
 		// hook beginning of 'R_RenderScene' to setup general stuff required for rtx-remix
 		utils::hook::nop(0x6C8DEB, 6); utils::hook(0x6C8DEB, r_renderscene_stub, HOOK_JUMP).install()->quick();
 
-		// hook R_SetMaterial - material/technique replacing
-		//utils::hook(0x741F1E, r_set_material, HOOK_CALL).install()->quick();
-
-		// load custom fastfile containing required assets
-		//utils::hook(0x6D63A5, load_common_fast_files, HOOK_CALL).install()->quick();
-
-		// ------------------------------------------------------------------------
-
 		// stub after 'R_InitGraphicsApi' (NVAPI Entry) to re-register stock dvars
 		utils::hook(0x6B833A, register_dvars_stub, HOOK_JUMP).install()->quick();
 
 		// ------------------------------------------------------------------------
 
-		// disable dynent drawing (could have stable hashes but no stable lods right now)
-		//utils::hook::nop(0x6DD7DD, 5);
+		// *
+		// culling
 
-		// note: dvar 'r_fovScaleThresholdRigid' can be used to stop fov related lod changes
+		// rewrite some logic in 'R_AddWorldSurfacesPortalWalk'
+		utils::hook::nop(0x6B5FC4, 9); utils::hook(0x6B5FC4, cull::cell_stub, HOOK_JUMP).install()->quick();
 
-		// implement r_forcelod logic for skinned models (R_SkinXModel)
-		// TODO: this causes crashes on some maps
-		//utils::hook::nop(0x6D9C10, 7);  utils::hook(0x6D9C10, skinned_xmodel_get_lod_for_dist_inlined, HOOK_JUMP).install()->quick();
+		// ^ - never show all cells at once when the camera cell index is < 0, we handle that in the func above
+		utils::hook::nop(0x6B5FB3, 2);
 
-		// implement r_forcelod logic for all other static models (R_AddAllStaticModelSurfacesCamera)
-		//utils::hook::nop(0x732CD6, 7);  utils::hook(0x732CD6, rigid_xmodel_get_lod_for_dist_inlined, HOOK_JUMP).install()->quick();
+		// disable (most) frustum culling
+		utils::hook::nop(0x7217DC, 2);
 
-		// r_warm_dpvs check @ 0x6E5D21 adds static models per cell
-		// ^ @ 0x7398B4 frustum culling
-		// DISABLE CULLING :: stop 'r_warm_dpvs' dvar from resetting itself je 0x74 -> jmp 0xEB
-		//utils::hook::set<BYTE>(0x6DDED8, 0xEB);
+		// disable mins culling 
+		utils::hook::nop(0x7215D9, 6);
 
-		// do not add dynent bmodels
-		//utils::hook::nop(0x6DD7BE, 5);
+		// ^ for smodels
+		// 0x72173F -> 2 byte -> jne 0072175F
 
-		// fix nullptr access (gfxsurface->material ptr) that can occur when culling is disabled (certain sp maps)
-		//utils::hook::nop(0x6DACB0, 6); utils::hook(0x6DACB0, r_add_bmodel_surfaces_camera_stub, HOOK_JUMP).install()->quick();
+		// never cull brushmodels via dpvs
+		utils::hook::nop(0x74784D, 2);
+		utils::hook::set<BYTE>(0x74785A, 0xEB); // ^
 
-		// hook FX_CullSphere to implement an additional radius check
-		//utils::hook::nop(0x4B4120, 6); utils::hook(0x4B4120, fx_cullsphere_stub, HOOK_JUMP).install()->quick();
+		// ^ scene ents (curtain on theater) 
+		utils::hook::nop(0x747618, 2);
 
-		/*dvars::fx_cull_elem_draw_radius = game::Dvar_RegisterFloat(
-			"fx_cull_elem_draw_radius",
-			1200.0f, 0.0f, 100000.0f,
-			game::dvar_flags::archive,
-			"fx elements inside this radius are not affected by culling (fx_cull_elem_draw)");*/
+#if 0
+		{
+			// R_AddWorldSurfacesPortalWalk :: less culling
+			utils::hook::nop(0x6B5FAD, 6); utils::hook(0x6B5FAD, cull::world_stub_01, HOOK_JUMP).install()->quick();
 
-		// ------------------------------------------------------------------------
+			// TODO ^ not use this or make optional with new option in dvar (bad fps)
 
-		/*command::add("rtx_sky_clear", [](command::params) { main_module::skysphere_spawn(0); });
-		command::add("rtx_sky_desert", [](command::params) { main_module::skysphere_spawn(1); });
-		command::add("rtx_sky_night", [](command::params) { main_module::skysphere_spawn(2); });
-		command::add("rtx_sky_overcast", [](command::params) { main_module::skysphere_spawn(3); });
-		command::add("rtx_sky_sunset", [](command::params) { main_module::skysphere_spawn(4); });*/
+			{
+				// note: using 'rtx_disable_world_culling' = 'less' results in unstable world geometry hashes (but stable static model hashes)
+				// -> using 'all-but-models' leaves culling logic for static models at 'less' but does not cull world geometry
+
+				// R_AddCellStaticSurfacesInFrustumCmd :: stub used to reset the skip model check from the stub below
+				utils::hook(0x711BBD, cull::world_stub_02_reset_helper, HOOK_JUMP).install()->quick();
+				// R_AddAabbTreeSurfacesInFrustum_r :: check if culling mode 'all-but-models' is active - check note above
+				utils::hook(0x721675, cull::world_stub_02_skip_static_model, HOOK_JUMP).install()->quick();
+
+				// R_AddAabbTreeSurfacesInFrustum_r :: mins check
+				utils::hook::nop(0x7215D2, 7); utils::hook(0x7215D2, cull::world_stub_02, HOOK_JUMP).install()->quick();
+			}
+
+			// R_AddAabbTreeSurfacesInFrustum_r :: maxs check
+			utils::hook::nop(0x72160E, 7); utils::hook(0x72160E, cull::world_stub_03, HOOK_JUMP).install()->quick();
+
+			// TODO: 0x6B0B19
+			// R_AddCellSceneEntSurfacesInFrustumCmd :: active ents like destructible cars / players
+			//utils::hook::nop(0x74A30D, 8); utils::hook(0x74A30D, cull::entities_stub, HOOK_JUMP).install()->quick();
+
+			// TODO:
+			// R_AddCellSceneEntSurfacesInFrustumCmd :: brushmodels
+			//utils::hook::nop(0x74A50A, 2);
+
+			//dvars::rtx_disable_entity_culling = game::sp::Dvar_RegisterBool(
+			//	/* name		*/ "rtx_disable_entity_culling",
+			//	/* default	*/ true,
+			//	/* flags	*/ game::dvar_flags::saved,
+			//	/* desc		*/ "Disable culling of game entities (script objects/destructible cars ...)");
+		}
+#endif
 	}
 }

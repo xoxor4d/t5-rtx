@@ -1,9 +1,13 @@
 #include "std_include.hpp"
-
 #define HIDWORD(x)  (*((DWORD*)&(x)+1))
 
-using namespace game::sp;
+// TODO:
+// * fix vid_restart (currently freezing - attempted fix is semi working - disabled for now)
+// * r_forcelod
+// * port fx sphere culling from t4
+// * game_mod compatibility (ASSERTS caused by R_Init not being called from the renderer thread)
 
+using namespace game::sp;
 namespace components::sp
 {
 	// *
@@ -26,7 +30,7 @@ namespace components::sp
 
 		__declspec(naked) void R_EnumDisplayModes_stub()
 		{
-			const static uint32_t retn_addr = 0x6D5CF2;
+			const static uint32_t retn_addr = 0x6B72A4;
 			__asm
 			{
 				push	esi; // mode index
@@ -55,8 +59,8 @@ namespace components::sp
 
 		__declspec(naked) void R_EnumDisplayModes_stub2()
 		{
-			const static uint32_t R_CompareDisplayModes_addr = 0x6D5C70;
-			const static uint32_t retn_addr = 0x6D5D2E;
+			const static uint32_t R_CompareDisplayModes_addr = 0x6B7220;
+			const static uint32_t retn_addr = 0x6B72DB;
 			__asm
 			{
 				pushad;
@@ -71,12 +75,12 @@ namespace components::sp
 
 	void fix_aspect_ratio(int* window_parms)
 	{
-		*reinterpret_cast<float*>(0x3BED844) = static_cast<float>(window_parms[7]) / static_cast<float>(window_parms[8]);
+		*reinterpret_cast<float*>(0x3966168) = static_cast<float>(window_parms[7]) / static_cast<float>(window_parms[8]);
 	}
 
 	void __declspec(naked) fix_aspect_ratio_stub()
 	{
-		const static uint32_t retn_addr = 0x6D504E;
+		const static uint32_t retn_addr = 0x6B69BE;
 		__asm
 		{
 			pop		eax;
@@ -194,13 +198,11 @@ namespace components::sp
 	void force_renderer_dvars()
 	{
 		dvars::bool_override("r_smp_backend", false);
-		dvars::bool_override("r_smp_worker", false);
-		dvars::bool_override("r_pretess", false);
+		dvars::bool_override("r_pretess", true);
 		dvars::bool_override("r_skinCache", false);
 		dvars::bool_override("r_fastSkin", false);
 		dvars::bool_override("r_smc_enable", false);
 		dvars::bool_override("r_depthPrepass", false);
-		dvars::bool_override("r_zfeather", false);
 		dvars::bool_override("r_dof_enable", false);
 		dvars::bool_override("r_distortion", false);
 
@@ -216,9 +218,9 @@ namespace components::sp
 		dvars::bool_override("r_vsync", false);
 		dvars::bool_override("r_shaderWarming", false);
 		dvars::bool_override("sm_enable", false);
-		dvars::bool_override("r_multiGpu", true);
 
-		// +set sys_smp_allowed 1 +set r_smp_worker 0 +set r_smp_backend 0 +set r_pretess 0
+		dvars::bool_override("r_smp_worker", true);
+		dvars::bool_override("r_multiGpu", false); // newest rtx (rr) crashes on init 
 
 		// R_RegisterCmds
 		utils::hook::call<void(__cdecl)()>(0x7244F0)();
@@ -229,6 +231,15 @@ namespace components::sp
 		utils::hook::call<void(__cdecl)()>(0x6B82E0)(); // R_Init
 		return utils::hook::call<int(__cdecl)()>(0x49D640)(); // related to g_connectpaths
 	}
+
+//#define RELOC_R_SHUTDOWN
+#ifdef RELOC_R_SHUTDOWN
+	void reloc_r_shutdown()
+	{
+		// R_Shutdown
+		utils::hook::call<void(__cdecl)()>(0x6B83A0)();
+	}
+#endif
 
 	void rb_renderthread_stub()
 	{
@@ -256,26 +267,29 @@ namespace components::sp
 		utils::hook::call<void(__cdecl)()>(0x5A0720)();
 	}
 
+	// call and move ptr after calling R_ToggleSmpFrame
+
 	void fix_dynamic_buffers()
 	{
 		// og call - R_EndFrame
 		utils::hook::call<void(__cdecl)()>(0x6D7B90)();
 
-		
-		// TODO: call RB_UpdateDynamicBuffers (0x6EBBB0) -> assign frontentdata before that to 0x4643FD8 ---   before R_IssueRenderCommands !??!?
-
-		// RB_UpdateDynamicBuffers normally grabs the backenddata from smpData -> data_0
-		// - place the backenddata ptr into data_0 manually 
-		const auto smp_data = reinterpret_cast<game::GfxBackEndData**>(0x4643FD8);
-		const auto frontend_data = game::sp::get_frontenddata_out();
-
-		// safety check
-		if (frontend_data->viewInfo && frontend_data->skinnedCacheVb)
+		// only when r_smp_backend is off - R_HandOffToBackend handles it otherwise
+		if (const auto var = game::sp::Dvar_FindVar("r_smp_backend"); var && !var->current.enabled)
 		{
-			*smp_data = frontend_data;
+			// RB_UpdateDynamicBuffers normally grabs the backenddata from smpData -> data_0
+			// - place the backenddata ptr into data_0 manually 
+			const auto smp_data = reinterpret_cast<game::GfxBackEndData**>(0x4643FD8);
+			const auto frontend_data = game::sp::get_frontenddata_out();
 
-			// RB_UpdateDynamicBuffers
-			utils::hook::call<void(__cdecl)()>(0x6EBBB0)();
+			// safety check
+			if (frontend_data->viewInfo && frontend_data->skinnedCacheVb)
+			{
+				*smp_data = frontend_data;
+
+				// RB_UpdateDynamicBuffers
+				utils::hook::call<void(__cdecl)()>(0x6EBBB0)();
+			}
 		}
 	}
 
@@ -379,9 +393,347 @@ namespace components::sp
 	{
 	}
 
+	void ui_3d_render_to_texture(game::GfxViewInfo* view)
+	{
+		if (!view->isMissileCamera)
+		{
+			// R_UI3D_SetupTextureWindow (we need to scale Y * 2 because its rendered at 1024x512 and it doesnt auto fit the screen)
+			utils::hook::call<void(__cdecl)(int window_index, float x, float y, float w, float h)>(0x6E21B0)(0, 0.0f, 0.0f, 1.0f, 2.0f);
+
+			// RB_UI3D_RenderToTexture
+			utils::hook::call<void(__cdecl)(const void* cmds, game::GfxUI3DBackend* rbUI3D, game::GfxCmdBufInput* input)>(0x6E26A0)(view->cmds, &view->rbUI3D, &view->input);
+		}
+
+		const static uint32_t R_SetAndClearSceneTarget_addr = 0x6CFD20;
+		__asm
+		{
+			pushad;
+			mov		eax, view;
+			call	R_SetAndClearSceneTarget_addr;
+			popad;
+		}
+
+		if (view->isMissileCamera)
+		{
+			//R_InitLocalCmdBufState(&gfxCmdBufState); // done above
+			game::sp::R_SetRenderTargetSize(game::sp::gfxCmdBufSourceState, 22);
+			game::sp::R_SetRenderTarget(game::sp::gfxCmdBufSourceState, game::sp::gfxCmdBufState, game::R_RENDERTARGET_MISSILE_CAM);
+		}
+
+		//// R_UI3D_SetupTextureWindow (we need to scale Y * 2 because its rendered at 1024x512 and it doesnt auto fit the screen)
+		//utils::hook::call<void(__cdecl)(int window_index, float x, float y, float w, float h)>(0x6E21B0)(0, 0.0f, 0.0f, 1.0f, 2.0f);
+
+		//// RB_UI3D_RenderToTexture
+		//utils::hook::call<void(__cdecl)(const void* cmds, game::GfxUI3DBackend* rbUI3D, game::GfxCmdBufInput* input)>(0x6E26A0)(view->cmds, &view->rbUI3D, &view->input);
+	}
+
+	void __declspec(naked) RB_UI3D_RenderToTexture_stub()
+	{
+		const static uint32_t stock_addr = 0x6CFD20;
+		const static uint32_t retn_addr = 0x6D0408;
+		__asm
+		{
+			pushad;
+			push	eax; // view
+			call	ui_3d_render_to_texture;
+			pop		eax;
+			popad;
+
+			// og code
+			//call	stock_addr; // called in func above
+			jmp		retn_addr;
+		}
+	}
+
+	void __declspec(naked) RB_FullbrightDrawCommands_stub()
+	{
+		const static uint32_t func_addr = 0x6CFB30; // RB_EndSceneRendering
+		const static uint32_t retn_addr = 0x6D051E;
+		const static uint32_t skip_addr = 0x6D0521;
+		__asm
+		{
+			xor		eax, eax;
+			mov		al, byte ptr [edi + 0x38C4]; // isMissileCamera
+			test	al, al;
+			jnz		SKIP;
+
+			push    ebx;
+			push    esi;
+			push    ebp;
+			call	func_addr;
+			jmp		retn_addr;
+
+		SKIP:
+			jmp		skip_addr;
+		}
+	}
+
+	// ------------------------
+
+	bool is_valid_technique_for_type(const game::Material* mat, const game::MaterialTechniqueType type)
+	{
+		if (mat
+			&& mat->u_techset.techniqueSet
+			&& mat->u_techset.techniqueSet->techniques
+			&& mat->u_techset.techniqueSet->techniques[type])
+		{
+			return true;
+		}
+
+		return false;
+	}
+
+	//void switch_material(game::switch_material_t* swm, const char* material_name)
+	//{
+	//	if (const auto	material = Material_RegisterHandle(material_name, 3);
+	//		material)
+	//	{
+	//		swm->material = material;
+	//		swm->technique = nullptr;
+
+	//		if (is_valid_technique_for_type(material, swm->technique_type))
+	//		{
+	//			swm->technique = material->techniqueSet->remappedTechniqueSet->techniques[swm->technique_type];
+	//		}
+
+	//		swm->switch_material = true;
+	//		return;
+	//	}
+
+	//	// return stock material if the above failed
+	//	swm->material = swm->current_material;
+	//}
+
+	void switch_technique(game::switch_material_t* swm, game::Material* material)
+	{
+		if (material)
+		{
+			swm->technique = nullptr;
+
+			if (is_valid_technique_for_type(material, swm->technique_type))
+			{
+				swm->technique = material->u_techset.techniqueSet->techniques[swm->technique_type];
+			}
+
+			swm->switch_technique = true;
+			return;
+		}
+
+		// return stock technique if the above failed
+		swm->technique = swm->current_technique;
+	}
+
+	int r_set_material(game::GfxCmdBufSourceState* source, game::GfxCmdBufState* state, game::GfxDrawSurf drawSurf, const game::MaterialTechniqueType type)
+	{
+		game::switch_material_t mat = {};
+
+		mat.current_material = game::sp::rgp->sortedMaterials[(drawSurf.packed >> 31) & 4095];
+		mat.current_technique = mat.current_material->u_techset.localTechniqueSet->techniques[type];
+
+		mat.material = mat.current_material;
+		mat.technique = mat.current_technique;
+		mat.technique_type = type;
+
+
+		if (utils::starts_with(mat.current_material->info.name, "wc/sky_"))
+		{
+			mat.technique_type = game::TECHNIQUE_UNLIT;
+			const auto ui3d_tex = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_IDENTITY_NORMAL_MAP]->texture.basemap;
+			if (ui3d_tex)
+			{
+				game::sp::dx->device->SetTexture(0, ui3d_tex);
+			}
+			//switch_material(&mat, "mc/mtl_test_sphere_silver");
+		}
+
+		if (!mat.switch_material && !mat.switch_technique && !mat.switch_technique_type)
+		{
+			if (state->origMaterial)
+			{
+				state->material = state->origMaterial;
+			}
+			if (state->origTechType)
+			{
+				state->techType = state->origTechType;
+			}
+		}
+
+		// save the original material
+		state->origMaterial = state->material;
+
+		// only switch to a different technique_type
+		if (mat.switch_technique_type)
+		{
+			switch_technique(&mat, mat.current_material);
+		}
+
+		state->material = mat.material;
+		state->technique = mat.technique;
+
+		if (!state->technique)
+		{
+			return 0;
+		}
+
+		if (!mat.switch_material && !mat.switch_technique && !mat.switch_technique_type)
+		{
+			if ((mat.technique_type == game::TECHNIQUE_EMISSIVE || mat.technique_type == game::TECHNIQUE_UNLIT) && (state->technique->flags & 0x10) != 0 && !*(WORD*)&source->pad[120])
+			{
+				return 0;
+			}
+		}
+
+		if (((DWORD)drawSurf.fields.objectId & 0x780000) == 0 && (mat.current_material->info.gameFlags & 8) != 0)
+		{
+			return 0; // do not render the bsp skybox
+
+			//const auto skyimg = reinterpret_cast<game::GfxImage**>(0x408930C);
+			//game::sp::dx->device->SetTexture(0, skyimg[0]->texture.basemap);
+		}
+
+		state->origTechType = state->techType;
+		state->techType = mat.technique_type;
+
+		return 1;
+	}
+
+
+	int skip_image_load(game::GfxImage* img)
+	{
+		// 0x2 = color, 0x5 = normal, 0x8 = spec
+		if (img->semantic == 0x5 || img->semantic == 0x8)
+		{
+			return 1;
+		}
+
+		return 0;
+	}
+
+	__declspec(naked) void load_image_stub()
+	{
+		const static uint32_t skip_img_addr = 0x736E2E;
+		const static uint32_t og_logic_addr = 0x736E23;
+		__asm
+		{
+			pushad;
+			push	esi;					// img
+			call	skip_image_load;
+			pop		esi;
+			cmp		eax, 1;
+			jne		OG_LOGIC;
+
+			popad;
+			mov		[esi + 0x1C], eax;
+			add     edi, 3;
+			jmp		skip_img_addr;
+
+			// og code
+		OG_LOGIC:
+			popad;
+			push    esi;
+			mov     edx, ebx;
+			lea     ecx, [esp + 0x14];
+			mov		[esi + 0x1C], eax;
+			jmp		og_logic_addr;
+		}
+	}
+
+	int check_stream_img(game::GfxImage* img)
+	{
+		if (!img->texture.basemap)
+		{
+			return 1;
+		}
+
+		return 0;
+	}
+
+	__declspec(naked) void load_image_stream_stub()
+	{
+		const static uint32_t skip_img_addr = 0x6F9170; //0x6F90A5;
+		const static uint32_t retn_addr = 0x6F9069;
+
+		const static uint32_t virt_free_func = 0x4F5F30;
+		__asm
+		{
+			pushad;
+			push	ebx;
+			call	check_stream_img;
+			add		esp, 4;
+			cmp		eax, 1;
+			jne		OG_LOGIC;
+
+			popad;
+			mov     eax, [ebx];
+			jmp		skip_img_addr;
+
+		OG_LOGIC:
+			popad;
+			mov     eax, [ebx];
+			mov     ecx, [ebp - 0x10];
+
+			/*push    ecx;
+			call	virt_free_func;
+			add		esp, 4;*/
+
+			jmp		retn_addr;
+		}
+	}
+
+	int check_sampler_img(game::GfxImage* img)
+	{
+		if (!img->texture.basemap)
+		{
+			/*if (img->name) game::sp::Com_PrintMessage(0, utils::va("sampler skip ... '%s'\n", img->name), 0);
+			else game::sp::Com_PrintMessage(0, utils::va("sampler skip ... no name\n"), 0);*/
+			return 1;
+		}
+
+		//game::sp::Com_PrintMessage(0, utils::va("sampler tex '%s'\n", img->name), 0);
+		return 0;
+	}
+
+	__declspec(naked) void r_setsampler_stub()
+	{
+		const static uint32_t skip_addr = 0x725C4B;
+		const static uint32_t retn_addr = 0x725BC9;
+		__asm
+		{
+			pushad;
+			push	ecx;
+			call	check_sampler_img;
+			add		esp, 4;
+			cmp		eax, 1;
+			jne		OG_LOGIC;
+
+			popad;
+			jmp		skip_addr;
+
+		OG_LOGIC:
+			popad;
+			// og
+			push    ebx;
+			mov     bl, [esp + 0x10];
+			jmp		retn_addr;
+		}
+	}
+
 	main_module::main_module()
 	{
-		// needs +set sys_smp_allowed 1 +set r_smp_worker 0 +set r_smp_backend 0 +set r_pretess 0 +set com_introPlayed 1 +set com_startupIntroPlayed 1 +devmap zombie_theater
+		// rb_fullbrightdrawcommands :: call RB_UI3D_RenderToTexture to update the main menu 3d hud (tv)
+		// texture (codeimage) is set via SetTexture in fixed_function::R_DrawXModelRigidModelSurf
+		utils::hook(0x6D0403, RB_UI3D_RenderToTexture_stub, HOOK_JUMP).install()->quick();
+
+		// extracam tests - do not call RB_EndSceneRendering when 'viewInfo->isMissileCamera'
+		utils::hook::nop(0x6D0516, 8);
+		utils::hook(0x6D0516, RB_FullbrightDrawCommands_stub, HOOK_JUMP).install()->quick();
+
+		// disable RB_DrawSun
+		utils::hook::nop(0x6D04FE, 5);
+
+		// hook R_SetMaterial - material/technique replacing
+		utils::hook(0x73F8C0, r_set_material, HOOK_JUMP).install()->quick();
+
 
 		// most of the following was done to make the game work with 'r_smp_backend' being disabled
 		// disabling 'r_smp_backend' causes the game to not receive and handle mb/kb input .. and f's up a whole lot more
@@ -397,6 +749,17 @@ namespace components::sp
 		utils::hook::nop(0x6EBEC9, 5); // do not call r_init from the renderer thread
 		utils::hook(0x52F28A, relocate_r_init, HOOK_CALL).install()->quick(); // TODO: reimpl. R_Init in various other functions
 
+#ifdef RELOC_R_SHUTDOWN // semi working
+		utils::hook(0x6B8559, reloc_r_shutdown, HOOK_CALL).install()->quick();
+		utils::hook::nop(0x6EBEE7, 7);
+		utils::hook::set<BYTE>(0x6EBEEE, 0xEB);
+		utils::hook::nop(0x6B855E, 7);
+		utils::hook::set<BYTE>(0x6B8565, 0xEB);
+
+		utils::hook::nop(0x5B52AE, 5); // do not check window resize in CL_Vid_Restart_f
+		utils::hook::nop(0x5D2F2C, 5); // do not check window resize in CL_Vid_Restart_FULL_f
+		utils::hook::set<BYTE>(0x5D2F59, 0xEB); // ^ allow on listen server
+#endif
 
 		// RB_RenderThread :: stub placed onto 'Sys_StopRenderer'
 		utils::hook(0x6EBE84, rb_renderthread_stub, HOOK_CALL).install()->quick();
@@ -450,13 +813,13 @@ namespace components::sp
 		utils::hook::nop(0x6E2A43, 5);
 		utils::hook(0x6E2A56, fx_draw_cmd_stub, HOOK_JUMP).install()->quick();
 
-
-		// not needed
-		//utils::hook::nop(0x6B833F, 10); // disable RB_CalcSunSpriteSamples
-
+		// disable RB_CalcSunSpriteSamples on R_Init
+		utils::hook::nop(0x6B833F, 10); 
 
 
 		// #
+		// pretess - r_pretess 1 drastically improves fps but results in unstable geo hashes
+
 		// R_GenerateSortedDrawSurfs :: fix r_pretess by setting buffer->used to zero before starting to add stuff to the scene
 		utils::hook::nop(0x6C70AC, 6);
 		utils::hook(0x6C70AC, fix_r_pretess_stub, HOOK_JUMP).install()->quick(); 
@@ -465,6 +828,21 @@ namespace components::sp
 		utils::hook::set<BYTE>(0x70971A + 3, 0x20); // double -> also doubles dyn index and dyn vertex buffers
 		utils::hook::set<BYTE>(0x7098D8 + 3, 0x40); // needs to be double of ^
 		utils::hook::set<BYTE>(0x7095E3 + 3, 0x40); // needs to be double of ^ -> R_InitDynamicIndexBufferState
+
+		// fix pretess deadlock - hack
+		utils::hook::set<BYTE>(0x6C7089, 0xEB);
+
+
+		// #
+		// disable loading of specular and normalmaps (de-clutter remix ui)
+		if (!flags::has_flag("load_normal_spec"))
+		{
+			utils::hook::nop(0x70A4CD, 5);
+			utils::hook::nop(0x736E19, 7); utils::hook(0x736E19, load_image_stub, HOOK_JUMP).install()->quick();
+			utils::hook(0x6F9064, load_image_stream_stub, HOOK_JUMP).install()->quick();
+
+			utils::hook(0x725BC4, r_setsampler_stub, HOOK_JUMP).install()->quick();
+		}
 
 
 
@@ -510,35 +888,14 @@ namespace components::sp
 		// disable the need for forward/backslashes for console cmds
 		utils::hook::nop(0x51226D, 5);
 
-		// precaching xmodels beyond level load (dynamic skysphere spawning)
-		//utils::hook::set<BYTE>(0x54A4D6, 0xEB);
-
 		// dxvk's 'EnumAdapterModes' returns a lot of duplicates and the games array only has a capacity of 256 which is not enough depending on max res. and refreshrate
 		// fix resolution issues by removing duplicates returned by EnumAdapterModes - then write the array ourselfs
-		//utils::hook(0x6D5CE2, sp::resolution::R_EnumDisplayModes_stub, HOOK_JUMP).install()->quick();
-		//utils::hook(0x6D5D29, sp::resolution::R_EnumDisplayModes_stub2, HOOK_JUMP).install()->quick();
-		//utils::hook::set<BYTE>(0x6D5CD0 + 2, 0x04); // set max array size check to 1024 (check within loop)
-
-		// Remove Impure client (iwd) check - needed?
-		//utils::hook::nop(0x5DBC7F, 30);
-
-		// stuck in some loop 'Com_Quit_f'
-		//utils::hook::nop(0x5FEA01, 5);
-
-		// don't play intro video - allows to devmap into a map via commandline
-		//utils::hook::nop(0x59D68B, 5); // mp: 0x564CB9
+		utils::hook(0x6B7294, sp::resolution::R_EnumDisplayModes_stub, HOOK_JUMP).install()->quick();
+		utils::hook(0x6B72D6, sp::resolution::R_EnumDisplayModes_stub2, HOOK_JUMP).install()->quick();
+		utils::hook::set<BYTE>(0x6B7282 + 2, 0x04); // set max array size check to 1024 (check within loop)
 
 		// :*
-		//utils::hook(0x6D4FB3, fix_aspect_ratio_stub, HOOK_JUMP).install()->quick();
-
-		// ------------------------------------------------------------------------
-
-		// un-cheat + userinfo flag for fx_enable
-		//utils::hook::set<BYTE>(0x4A4D16 + 1, 0x01); // was 0x80
-
-		// un-cheat + userinfo flag for sv_cheats
-		//utils::hook::set<BYTE>(0x70B92D + 1, 0x01); // was 0x48
-		//utils::hook::set<BYTE>(0x70B92D + 1, 0x01);
+		utils::hook(0x6B6923, fix_aspect_ratio_stub, HOOK_JUMP).install()->quick();
 
 		// ------------------------------------------------------------------------
 
@@ -562,15 +919,5 @@ namespace components::sp
 			SetWindowLongPtr(hwnd, GWL_STYLE, WS_VISIBLE | WS_POPUP);
 			SetWindowPos(hwnd, nullptr, 0, 0, game::sp::dx->windows->width, game::sp::dx->windows->height, SWP_SHOWWINDOW | SWP_NOACTIVATE);
 		});
-
-		/*command::add("windowed", [this](command::params)
-		{
-			if (sp::main_module::noborder_titlebar_height)
-			{
-				const auto hwnd = game::main_window;
-				SetWindowLongPtr(hwnd, GWL_STYLE, WS_VISIBLE | WS_SYSMENU | WS_CAPTION | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
-				SetWindowPos(hwnd, nullptr, 0, 0, game::sp::dx->windows->width, game::sp::dx->windows->height + sp::main_module::noborder_titlebar_height, SWP_SHOWWINDOW | SWP_NOACTIVATE);
-			}
-		});*/
 	}
 }

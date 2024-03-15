@@ -66,11 +66,6 @@ namespace components::sp
 							const auto v_pos_in_buffer = i * MODEL_VERTEX_STRIDE;
 							const auto v = reinterpret_cast<unpacked_model_vert*>(((DWORD)vertex_buffer_data + v_pos_in_buffer));
 
-							// assign pos
-							v->pos[0] = src_vert.xyz[0];
-							v->pos[1] = src_vert.xyz[1];
-							v->pos[2] = src_vert.xyz[2];
-
 							// unpack normal and texcoords
 							const auto scale = static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[3])) * (1.0f / 255.0f) + 0.7529412f;
 							v->normal[0] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[0])) * (1.0f / 127.0f) + -1.0f) * scale;
@@ -78,6 +73,11 @@ namespace components::sp
 							v->normal[2] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[2])) * (1.0f / 127.0f) + -1.0f) * scale;
 
 							game::sp::Vec2UnpackTexCoords(src_vert.texCoord.packed, v->texcoord);
+
+							// assign pos
+							v->pos[0] = src_vert.xyz[0];
+							v->pos[1] = src_vert.xyz[1];
+							v->pos[2] = src_vert.xyz[2];
 						}
 
 						surf->vb0->Unlock();
@@ -263,7 +263,6 @@ namespace components::sp
 			__debugbreak();
 		}
 
-		// build custom vertexbuffer for dynamically spawned models
 		if (!surf->vb0)
 		{
 			if (XSurfaceOptimize(surf) && state->material && state->material->info.name)
@@ -285,10 +284,16 @@ namespace components::sp
 		// skysphere materials need to have sort = sky in assetmanager
 		if (state->material && state->material->info.sortKey == 5)
 		{
-			custom_scalar = 1000.0f;
+			custom_scalar = 5.0f;
 
 			// disable fog for skysphere
 			state->prim.device->SetRenderState(D3DRS_FOGENABLE, FALSE);
+
+			const auto ui3d_tex = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_IDENTITY_NORMAL_MAP];
+			if (ui3d_tex && ui3d_tex->texture.basemap)
+			{
+				game::sp::dx->device->SetTexture(0, ui3d_tex->texture.basemap);
+			}
 		}
 
 		// #
@@ -343,9 +348,75 @@ namespace components::sp
 		// #
 		// draw prim
 
+		if (std::string_view(state->material->info.name) == std::string_view("mc/mtl_p_rus_security_monitor_extracam"))
+		{
+			// extracam is currently rendered from player pov
+			if (const auto extracam_rt = reinterpret_cast<game::GfxRenderTarget*>(0x45EB3A0); 
+				extracam_rt && extracam_rt->image)
+			{
+				game::sp::dx->device->SetTexture(0, extracam_rt->image->texture.basemap);
+			}
+		}
+
+		DWORD saved_st0_colorop = 0, saved_st0_colorarg1 = 0, saved_st0_colorarg2 = 0;
+		DWORD saved_st1_colorop = 0, saved_st1_colorarg1 = 0, saved_st1_colorarg2 = 0;
+		bool changed_states = false;
+
+		// tv with anim
+		if (std::string_view(state->material->info.name) == std::string_view("mc/mtl_bink_4x4"))
+		{
+			const auto cinematic_y = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_CINEMATIC_Y]->texture.basemap;
+			if (cinematic_y)
+			{
+				// mutlitexture blending is not supported by remix?
+				// https://stackoverflow.com/questions/4041840/function-to-convert-ycbcr-to-rgb
+
+				changed_states = true;
+
+				game::sp::dx->device->GetTextureStageState(0, D3DTSS_COLOROP, &saved_st0_colorop);
+				game::sp::dx->device->GetTextureStageState(0, D3DTSS_COLORARG1, &saved_st0_colorarg1);
+				game::sp::dx->device->GetTextureStageState(0, D3DTSS_COLORARG2, &saved_st0_colorarg2);
+				game::sp::dx->device->GetTextureStageState(1, D3DTSS_COLOROP, &saved_st1_colorop);
+				game::sp::dx->device->GetTextureStageState(1, D3DTSS_COLORARG1, &saved_st1_colorarg1);
+				game::sp::dx->device->GetTextureStageState(1, D3DTSS_COLORARG2, &saved_st1_colorarg2);
+
+				game::sp::dx->device->SetTexture(0, cinematic_y);
+				game::sp::dx->device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+				game::sp::dx->device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+
+				game::sp::dx->device->SetRenderState(D3DRS_TEXTUREFACTOR, D3DCOLOR_XRGB(174, 220, 184));
+				game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLORARG1, D3DTA_CURRENT);
+				game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLORARG2, D3DTA_TFACTOR);
+				game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_MODULATE);
+			}
+		}
+
+		if (std::string_view(state->material->info.name) == std::string_view("mc/mtl_ui3d_0")
+			/*|| std::string_view(state->material->info.name) == std::string_view("mc/mtl_ui3d_1")*/)
+		{
+			const auto ui3d_tex = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_UI3D]->texture.basemap;
+			if (ui3d_tex)
+			{
+				game::sp::dx->device->SetTexture(0, ui3d_tex);
+				game::sp::dx->device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+				game::sp::dx->device->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_BORDER);
+			}
+		}
+
 		const auto offset = 0;
 		state->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, offset, surf->triCount);
 		dev->SetFVF(NULL);
+
+		// restore states if changed
+		if (changed_states)
+		{
+			game::sp::dx->device->SetTextureStageState(0, D3DTSS_COLOROP, saved_st0_colorop);
+			game::sp::dx->device->SetTextureStageState(0, D3DTSS_COLORARG1, saved_st0_colorarg1);
+			game::sp::dx->device->SetTextureStageState(0, D3DTSS_COLORARG2, saved_st0_colorarg2);
+			game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLOROP, saved_st1_colorop);
+			game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLORARG1, saved_st1_colorarg1);
+			game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLORARG2, saved_st1_colorarg2);
+		}
 	}
 
 	// ------------------------
@@ -1169,7 +1240,7 @@ namespace components::sp
 		}
 	}
 
-//#define ZNEAR_TEST
+//#define ZNEAR_TEST // znear doesnt really change anything in this game
 #ifdef ZNEAR_TEST
 	game::dvar_s r_znear = {};
 	game::dvar_s* r_znear_ptr = nullptr;

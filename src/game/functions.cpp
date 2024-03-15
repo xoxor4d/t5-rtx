@@ -21,6 +21,8 @@ namespace game
 		//clipMap_t* cm = reinterpret_cast<clipMap_t*>(0x1F41A00);
 		r_global_permanent_t* rgp = reinterpret_cast<r_global_permanent_t*>(0x3966180);
 		GfxCmdBufSourceState* gfxCmdBufSourceState = reinterpret_cast<GfxCmdBufSourceState*>(0x40CA570);
+		GfxCmdBufState* gfxCmdBufState = reinterpret_cast<GfxCmdBufState*>(0x457EE00);
+		Ui3dTextureWindow* g_ui3d_windows = reinterpret_cast<Ui3dTextureWindow*>(0x3E58E30);
 
 		// GfxWorldDraw* g_worldDraw = reinterpret_cast<GfxWorldDraw*>(0x460C0B0);
 		GfxWorldDraw* get_g_world_draw()
@@ -120,6 +122,32 @@ namespace game
 		//		add     esp, 4h;
 		//	}
 		//}
+
+		void R_SetRenderTargetSize(GfxCmdBufSourceState* source /*ecx*/, std::uint8_t rt_index /*al*/)
+		{
+			const static uint32_t R_SetRenderTargetSize_func = 0x7265E0;
+			__asm
+			{
+				xor		eax, eax;
+				mov		al, rt_index;
+				mov		ecx, source;
+				call	R_SetRenderTargetSize_func;
+			}
+		}
+
+		void R_AddCellSurfacesAndCullGroupsInFrustumDelayed(GfxCell* cell /*eax*/, DpvsPlane* planes /*edi*/, int planeCount, int frustumPlaneCount)
+		{
+			const static uint32_t func_addr = 0x6B32C0;
+			__asm
+			{
+				push	frustumPlaneCount;
+				push	planeCount;
+				mov		edi, planes;
+				mov		eax, cell;
+				call	func_addr;
+				add		esp, 8;
+			}
+		}
 	} // sp-end
 
 	// ------------------------------------------------------------------------------------------------------------

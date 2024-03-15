@@ -25,6 +25,8 @@ namespace game
 		//extern clipMap_t* cm;
 		extern r_global_permanent_t* rgp;
 		extern GfxCmdBufSourceState* gfxCmdBufSourceState;
+		extern GfxCmdBufState* gfxCmdBufState;
+		extern Ui3dTextureWindow* g_ui3d_windows;
 
 		static DWORD* g_world_draw_ptr = (DWORD*)(0x460C0B0);
 		extern GfxWorldDraw* get_g_world_draw();
@@ -46,6 +48,9 @@ namespace game
 		//static DWORD* backEndDataOut_ptr = (DWORD*)(0x3DCB4CC);
 
 		static utils::function<dvar_s* __cdecl (const char* name)> Dvar_FindVar = 0x5AE810;
+		static utils::function<dvar_s* __cdecl (const char* name, const char** data, int value, dvar_flags flags, const char* desc)> Dvar_RegisterEnum = 0x51BD00;
+		static utils::function<dvar_s* __cdecl (const char* name, bool value, dvar_flags flags, const char* desc)> Dvar_RegisterBool = 0x45BB20;
+
 		//static utils::function<Material* __fastcall (const char* name, int)> Material_RegisterHandle = 0x6E9C20;
 
 		//static utils::function<void __fastcall (int, GfxCmdBufSourceState*)> R_Set3D = 0x7244C0;
@@ -84,6 +89,11 @@ namespace game
 		//static utils::function<game::gentity_s* ()> G_Spawn = 0x54EAB0;
 		//static utils::function<bool(game::gentity_s*)> G_CallSpawnEntity = 0x5465A0;
 		//static utils::function<void(entityState_s*)> G_DObjUpdate = 0x54AC40;
+
+		void R_SetRenderTargetSize(GfxCmdBufSourceState* source /*ecx*/, std::uint8_t rt_index /*al*/); // asm
+		static utils::function<void(GfxCmdBufSourceState* source, GfxCmdBufState* state, std::uint8_t rt_index)> R_SetRenderTarget = 0x726650;
+
+		void R_AddCellSurfacesAndCullGroupsInFrustumDelayed(GfxCell* cell /*eax*/, DpvsPlane* planes /*edi*/, int planeCount, int frustumPlaneCount); // asm
 	}
 
 	// ------------------------------------------------------------------------------------------------------------
