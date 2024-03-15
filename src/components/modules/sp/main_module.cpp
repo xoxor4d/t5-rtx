@@ -329,7 +329,7 @@ namespace components::sp
 	}
 
 #if DEBUG
-	#define DEBUG_WINPROC
+	//#define DEBUG_WINPROC
 	#ifdef DEBUG_WINPROC
 	void print_main_win_proc_msg(std::uint32_t msg)
 	{
@@ -835,7 +835,7 @@ namespace components::sp
 
 		// #
 		// disable loading of specular and normalmaps (de-clutter remix ui)
-		if (!flags::has_flag("load_normal_spec"))
+		if (!game::is_game_mod && !flags::has_flag("load_normal_spec"))
 		{
 			utils::hook::nop(0x70A4CD, 5);
 			utils::hook::nop(0x736E19, 7); utils::hook(0x736E19, load_image_stub, HOOK_JUMP).install()->quick();

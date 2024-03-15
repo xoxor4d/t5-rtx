@@ -371,23 +371,27 @@ namespace components::sp
 				// mutlitexture blending is not supported by remix?
 				// https://stackoverflow.com/questions/4041840/function-to-convert-ycbcr-to-rgb
 
+				game::sp::dx->device->SetTexture(0, cinematic_y);
+
 				changed_states = true;
 
-				game::sp::dx->device->GetTextureStageState(0, D3DTSS_COLOROP, &saved_st0_colorop);
-				game::sp::dx->device->GetTextureStageState(0, D3DTSS_COLORARG1, &saved_st0_colorarg1);
-				game::sp::dx->device->GetTextureStageState(0, D3DTSS_COLORARG2, &saved_st0_colorarg2);
-				game::sp::dx->device->GetTextureStageState(1, D3DTSS_COLOROP, &saved_st1_colorop);
-				game::sp::dx->device->GetTextureStageState(1, D3DTSS_COLORARG1, &saved_st1_colorarg1);
-				game::sp::dx->device->GetTextureStageState(1, D3DTSS_COLORARG2, &saved_st1_colorarg2);
+				if (!game::is_game_mod)
+				{
+					game::sp::dx->device->GetTextureStageState(0, D3DTSS_COLOROP, &saved_st0_colorop);
+					game::sp::dx->device->GetTextureStageState(0, D3DTSS_COLORARG1, &saved_st0_colorarg1);
+					game::sp::dx->device->GetTextureStageState(0, D3DTSS_COLORARG2, &saved_st0_colorarg2);
+					game::sp::dx->device->GetTextureStageState(1, D3DTSS_COLOROP, &saved_st1_colorop);
+					game::sp::dx->device->GetTextureStageState(1, D3DTSS_COLORARG1, &saved_st1_colorarg1);
+					game::sp::dx->device->GetTextureStageState(1, D3DTSS_COLORARG2, &saved_st1_colorarg2);
 
-				game::sp::dx->device->SetTexture(0, cinematic_y);
-				game::sp::dx->device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-				game::sp::dx->device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+					game::sp::dx->device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+					game::sp::dx->device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
 
-				game::sp::dx->device->SetRenderState(D3DRS_TEXTUREFACTOR, D3DCOLOR_XRGB(174, 220, 184));
-				game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLORARG1, D3DTA_CURRENT);
-				game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLORARG2, D3DTA_TFACTOR);
-				game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_MODULATE);
+					game::sp::dx->device->SetRenderState(D3DRS_TEXTUREFACTOR, D3DCOLOR_XRGB(174, 220, 184));
+					game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLORARG1, D3DTA_CURRENT);
+					game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLORARG2, D3DTA_TFACTOR);
+					game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_MODULATE);
+				}
 			}
 		}
 
@@ -408,7 +412,7 @@ namespace components::sp
 		dev->SetFVF(NULL);
 
 		// restore states if changed
-		if (changed_states)
+		if (changed_states && !game::is_game_mod)
 		{
 			game::sp::dx->device->SetTextureStageState(0, D3DTSS_COLOROP, saved_st0_colorop);
 			game::sp::dx->device->SetTextureStageState(0, D3DTSS_COLORARG1, saved_st0_colorarg1);
