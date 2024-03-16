@@ -249,14 +249,14 @@ namespace components::sp
 
 	void R_DrawXModelRigidModelSurf(game::XSurface* unused_surf [[maybe_unused]], game::GfxCmdBufSourceState* source [[maybe_unused]], game::GfxCmdBufState* state)
 	{
-		if (!saved_gfxmodel)
+		if (!saved_gfxmodel || !state->material || !state->material->info.name)
 		{
 			__debugbreak();
 			return;
 		}
 
 		const auto dev = game::sp::dx->device;
-		const auto surf = saved_gfxmodel->surf.xsurf;
+		const auto surf = saved_gfxmodel->surf.xsurf; 
 
 		if ((surf->flags & 0x80))
 		{
@@ -272,6 +272,8 @@ namespace components::sp
 #endif
 			}
 		}
+
+		const auto current_material_name = std::string_view(state->material->info.name);
 
 		// #
 		// set streams
@@ -289,11 +291,32 @@ namespace components::sp
 			// disable fog for skysphere
 			state->prim.device->SetRenderState(D3DRS_FOGENABLE, FALSE);
 
-			const auto ui3d_tex = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_IDENTITY_NORMAL_MAP];
-			if (ui3d_tex && ui3d_tex->texture.basemap)
+			if (state->material->textureTable && state->material->textureTable->u.image)
 			{
-				game::sp::dx->device->SetTexture(0, ui3d_tex->texture.basemap);
+				if (state->material->textureTable->u.image->mapType == 5)
+				{
+					if (const auto identity = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_IDENTITY_NORMAL_MAP];
+							identity && identity->texture.basemap)
+					{
+						game::sp::dx->device->SetTexture(0, identity->texture.basemap);
+					}
+				}
+				else
+				{
+					// non cubemap images or cubemaps that were replaced with kowloon
+					game::sp::dx->device->SetTexture(0, state->material->textureTable->u.image->texture.basemap);
+				}
+
+				/*main_module::setup_sky_image(state->material->textureTable->u.image);
+				if (main_module::m_sky_texture)
+				{
+					game::sp::dx->device->SetTexture(0, main_module::m_sky_texture);
+				}*/
 			}
+			/*if (const auto skyimg = reinterpret_cast<game::GfxImage**>(0x408930C); skyimg[0] && skyimg[0]->texture.basemap)
+			{
+				game::sp::dx->device->SetTexture(0, skyimg[0]->texture.basemap);
+			}*/
 		}
 
 		// #
@@ -302,11 +325,9 @@ namespace components::sp
 		float model_axis[3][3] = {};
 		utils::unit_quat_to_axis(saved_gfxmodel->placement.base.quat, model_axis);
 
-		//const auto mtx = source->matrices.matrix[0].m;
 		float mtx[4][4] = {};
 		const auto scale = saved_gfxmodel->placement.scale;
 
-		// inlined ikMatrixSet44
 		mtx[0][0] = model_axis[0][0] * scale * custom_scalar;
 		mtx[0][1] = model_axis[0][1] * scale * custom_scalar;
 		mtx[0][2] = model_axis[0][2] * scale * custom_scalar;
@@ -348,41 +369,47 @@ namespace components::sp
 		// #
 		// draw prim
 
-		if (std::string_view(state->material->info.name) == std::string_view("mc/mtl_p_rus_security_monitor_extracam"))
+		if (current_material_name == std::string_view("mc/mtl_p_rus_security_monitor_extracam"))
 		{
 			// extracam is currently rendered from player pov
 			if (const auto extracam_rt = reinterpret_cast<game::GfxRenderTarget*>(0x45EB3A0); 
-				extracam_rt && extracam_rt->image)
+				extracam_rt && extracam_rt->image && extracam_rt->image->texture.basemap)
 			{
 				game::sp::dx->device->SetTexture(0, extracam_rt->image->texture.basemap);
 			}
 		}
 
+//#define CHANGE_CINE_COLOR
+#ifdef CHANGE_CINE_COLOR
 		DWORD saved_st0_colorop = 0, saved_st0_colorarg1 = 0, saved_st0_colorarg2 = 0;
 		DWORD saved_st1_colorop = 0, saved_st1_colorarg1 = 0, saved_st1_colorarg2 = 0;
+		DWORD saved_texfactor = 0;
 		bool changed_states = false;
+#endif
 
 		// tv with anim
-		if (std::string_view(state->material->info.name) == std::string_view("mc/mtl_bink_4x4"))
+		if (current_material_name == std::string_view("mc/mtl_bink_4x4"))
 		{
-			const auto cinematic_y = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_CINEMATIC_Y]->texture.basemap;
-			if (cinematic_y)
+			if (const auto cinematic_y = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_CINEMATIC_Y];
+				cinematic_y && cinematic_y->texture.basemap)
 			{
 				// mutlitexture blending is not supported by remix?
 				// https://stackoverflow.com/questions/4041840/function-to-convert-ycbcr-to-rgb
 
-				game::sp::dx->device->SetTexture(0, cinematic_y);
+				game::sp::dx->device->SetTexture(0, cinematic_y->texture.basemap);
 
-				changed_states = true;
-
+#ifdef CHANGE_CINE_COLOR
 				if (!game::is_game_mod)
 				{
+					changed_states = true;
+				
 					game::sp::dx->device->GetTextureStageState(0, D3DTSS_COLOROP, &saved_st0_colorop);
 					game::sp::dx->device->GetTextureStageState(0, D3DTSS_COLORARG1, &saved_st0_colorarg1);
 					game::sp::dx->device->GetTextureStageState(0, D3DTSS_COLORARG2, &saved_st0_colorarg2);
 					game::sp::dx->device->GetTextureStageState(1, D3DTSS_COLOROP, &saved_st1_colorop);
 					game::sp::dx->device->GetTextureStageState(1, D3DTSS_COLORARG1, &saved_st1_colorarg1);
 					game::sp::dx->device->GetTextureStageState(1, D3DTSS_COLORARG2, &saved_st1_colorarg2);
+					game::sp::dx->device->GetRenderState(D3DRS_TEXTUREFACTOR, &saved_texfactor);
 
 					game::sp::dx->device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 					game::sp::dx->device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
@@ -392,18 +419,17 @@ namespace components::sp
 					game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLORARG2, D3DTA_TFACTOR);
 					game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_MODULATE);
 				}
+#endif
 			}
 		}
 
-		if (std::string_view(state->material->info.name) == std::string_view("mc/mtl_ui3d_0")
-			/*|| std::string_view(state->material->info.name) == std::string_view("mc/mtl_ui3d_1")*/)
+		if (current_material_name == std::string_view("mc/mtl_ui3d_0")
+			|| current_material_name == std::string_view("mc/mtl_ui3d_1"))
 		{
-			const auto ui3d_tex = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_UI3D]->texture.basemap;
-			if (ui3d_tex)
+			if (const auto ui3d_tex = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_UI3D];
+				ui3d_tex && ui3d_tex->texture.basemap)
 			{
-				game::sp::dx->device->SetTexture(0, ui3d_tex);
-				game::sp::dx->device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
-				game::sp::dx->device->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_BORDER);
+				game::sp::dx->device->SetTexture(0, ui3d_tex->texture.basemap);
 			}
 		}
 
@@ -411,6 +437,7 @@ namespace components::sp
 		state->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, offset, surf->triCount);
 		dev->SetFVF(NULL);
 
+#ifdef CHANGE_CINE_COLOR
 		// restore states if changed
 		if (changed_states && !game::is_game_mod)
 		{
@@ -420,7 +447,9 @@ namespace components::sp
 			game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLOROP, saved_st1_colorop);
 			game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLORARG1, saved_st1_colorarg1);
 			game::sp::dx->device->SetTextureStageState(1, D3DTSS_COLORARG2, saved_st1_colorarg2);
+			game::sp::dx->device->SetRenderState(D3DRS_TEXTUREFACTOR, saved_texfactor);
 		}
+#endif
 	}
 
 	// ------------------------
@@ -476,11 +505,11 @@ namespace components::sp
 		return base_index;
 	}
 
-	void R_DrawXModelSkinnedUncached(game::GfxModelSkinnedSurface* skinned_surf, game::GfxCmdBufSourceState* src, game::GfxCmdBufState* state)
+	void R_DrawXModelSkinnedUncached(game::GfxModelRigidSurface* skinned_surf, game::GfxCmdBufSourceState* src, game::GfxCmdBufState* state, int is_skinned_vert)
 	{
 		// fixed function rendering
 
-		const auto surf = skinned_surf->xsurf;
+		const auto surf = skinned_surf->surf.xsurf;
 		const auto start_index = R_SetIndexData(&state->prim, surf->triIndices, surf->triCount);
 
 		if ((int)(MODEL_VERTEX_STRIDE * surf->vertCount + game::sp::gfx_buf->dynamicVertexBuffer->used) > game::sp::gfx_buf->dynamicVertexBuffer->total)
@@ -502,10 +531,10 @@ namespace components::sp
 			for (auto i = 0u; i < surf->vertCount; i++)
 			{
 				// packed source vertex
-				const auto src_vert = skinned_surf->u.skinnedVert[i];
+				const auto src_vert = is_skinned_vert ? skinned_surf->surf.u.skinnedVert[i] : *surf->verts0;
 
 				// position of our unpacked vert within the vertex buffer
-				const auto v_pos_in_buffer = i * MODEL_VERTEX_STRIDE;
+ 				const auto v_pos_in_buffer = i * MODEL_VERTEX_STRIDE;
 				const auto v = reinterpret_cast<unpacked_model_vert*>(((DWORD)buffer_data + v_pos_in_buffer));
 
 				// vert pos
@@ -551,18 +580,18 @@ namespace components::sp
 		state->prim.device->SetPixelShader(nullptr);
 
 		// vertex format
-		state->prim.device->SetFVF(MODEL_VERTEX_FORMAT);
+		state->prim.device->SetFVF(MODEL_VERTEX_FORMAT); 
 
 
 		// #
 		// build world matrix
 
 		float model_axis[3][3] = {};
-		utils::unit_quat_to_axis(src->skinnedPlacement.base.quat, model_axis);
+		utils::unit_quat_to_axis(is_skinned_vert ? src->skinnedPlacement.base.quat : skinned_surf->placement.base.quat /*src->objectPlacement->base.quat*/, model_axis);
 
 		//const auto mtx = source->matrices.matrix[0].m;
 		float mtx[4][4] = {};
-		const auto scale = src->skinnedPlacement.scale;
+		const auto scale = is_skinned_vert ? src->skinnedPlacement.scale : skinned_surf->placement.scale /*src->objectPlacement->scale*/;
 
 		// inlined ikMatrixSet44
 		mtx[0][0] = model_axis[0][0] * scale;
@@ -580,9 +609,9 @@ namespace components::sp
 		mtx[2][2] = model_axis[2][2] * scale;
 		mtx[2][3] = 0.0f;
 
-		mtx[3][0] = src->skinnedPlacement.base.origin[0];
-		mtx[3][1] = src->skinnedPlacement.base.origin[1];
-		mtx[3][2] = src->skinnedPlacement.base.origin[2];
+		mtx[3][0] = is_skinned_vert ? src->skinnedPlacement.base.origin[0] : skinned_surf->placement.base.origin[0]; //src->objectPlacement->base.origin[0];
+		mtx[3][1] = is_skinned_vert ? src->skinnedPlacement.base.origin[1] : skinned_surf->placement.base.origin[1]; //src->objectPlacement->base.origin[1];
+		mtx[3][2] = is_skinned_vert ? src->skinnedPlacement.base.origin[2] : skinned_surf->placement.base.origin[2]; //src->objectPlacement->base.origin[2];
 		mtx[3][3] = 1.0f;
 
 		// set world matrix
@@ -596,13 +625,157 @@ namespace components::sp
 		const static uint32_t retn_addr = 0x73C988;
 		__asm
 		{
+			push	1;
 			push    edi; // state
 			push    ebx; // source
 			push	esi; // GfxModelSkinnedSurface
 			call	R_DrawXModelSkinnedUncached;
-			add		esp, 12;
+			add		esp, 16;
 			jmp		retn_addr;
 		}
+	}
+
+	__declspec(naked) void R_DrawXModelSkinnedUncached_stub2()
+	{
+		const static uint32_t retn_addr = 0x73DFB8;
+		__asm
+		{
+			push	0;
+			push    edi; // state
+			push    ebx; // source
+			push	eax; // GfxModelSkinnedSurface
+			call	R_DrawXModelSkinnedUncached;
+			add		esp, 4;
+			jmp		retn_addr;
+		}
+	}
+
+	void R_DrawStaticModelsSkinnedDrawSurf(game::GfxStaticModelDrawStream* draw_stream, game::GfxCmdBufSourceState* src, game::GfxCmdBufState* state)
+	{
+		const auto surf = draw_stream->localSurf;
+		const auto start_index = R_SetIndexData(&state->prim, surf->triIndices, surf->triCount);
+
+		/*if (!surf->deformed && surf->custom_vertexbuffer)
+		{
+			if (state->prim.streams[0].vb != surf->custom_vertexbuffer || state->prim.streams[0].offset != 0 || state->prim.streams[0].stride != MODEL_VERTEX_STRIDE)
+			{
+				state->prim.streams[0].vb = surf->custom_vertexbuffer;
+				state->prim.streams[0].offset = 0;
+				state->prim.streams[0].stride = MODEL_VERTEX_STRIDE;
+				state->prim.device->SetStreamSource(0, surf->custom_vertexbuffer, 0, MODEL_VERTEX_STRIDE);
+			}
+		}
+		else*/
+		{
+			if ((int)(MODEL_VERTEX_STRIDE * surf->vertCount + game::sp::gfx_buf->dynamicVertexBuffer->used) > game::sp::gfx_buf->dynamicVertexBuffer->total)
+			{
+				game::sp::gfx_buf->dynamicVertexBuffer->used = 0;
+			}
+
+			// R_SetVertexData
+			void* buffer_data;
+			if (const auto hr = game::sp::gfx_buf->dynamicVertexBuffer->buffer->Lock(game::sp::gfx_buf->dynamicVertexBuffer->used, MODEL_VERTEX_STRIDE * surf->vertCount, &buffer_data, game::sp::gfx_buf->dynamicVertexBuffer->used != 0 ? 0x1000 : 0x2000);
+				hr < 0)
+			{
+				//R_FatalLockError(hr);
+				//game::Com_Error(game::ERR_DROP, "Fatal lock error :: R_DrawXModelSkinnedUncached");
+				__debugbreak();
+			}
+			{
+				for (auto i = 0u; i < surf->vertCount; i++)
+				{
+					// packed source vertex
+					const auto src_vert = surf->verts0[i];
+
+					// position of our unpacked vert within the vertex buffer
+					const auto v_pos_in_buffer = i * MODEL_VERTEX_STRIDE;
+					const auto v = reinterpret_cast<unpacked_model_vert*>(((DWORD)buffer_data + v_pos_in_buffer));
+
+					// vert pos
+					v->pos[0] = src_vert.xyz[0];
+					v->pos[1] = src_vert.xyz[1];
+					v->pos[2] = src_vert.xyz[2];
+
+					// unpack and assign vert normal
+
+					// normal unpacking in a cod4 hlsl shader:
+					// temp0	 = i.normal * float4(0.007874016, 0.007874016, 0.007874016, 0.003921569) + float4(-1, -1, -1, 0.7529412);
+					// temp0.xyz = temp0.www * temp0;
+
+					const auto scale = static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[3])) * (1.0f / 255.0f) + 0.7529412f;
+					v->normal[0] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[0])) * (1.0f / 127.0f) + -1.0f) * scale;
+					v->normal[1] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[1])) * (1.0f / 127.0f) + -1.0f) * scale;
+					v->normal[2] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[2])) * (1.0f / 127.0f) + -1.0f) * scale;
+
+					// uv's
+					game::sp::Vec2UnpackTexCoords(src_vert.texCoord.packed, v->texcoord);
+				}
+			}
+
+			game::sp::gfx_buf->dynamicVertexBuffer->buffer->Unlock();
+			const std::uint32_t vert_offset = game::sp::gfx_buf->dynamicVertexBuffer->used;
+			game::sp::gfx_buf->dynamicVertexBuffer->used += (MODEL_VERTEX_STRIDE * surf->vertCount);
+
+			// #
+			// #
+
+			if (state->prim.streams[0].vb != game::sp::gfx_buf->dynamicVertexBuffer->buffer || state->prim.streams[0].offset != vert_offset || state->prim.streams[0].stride != MODEL_VERTEX_STRIDE)
+			{
+				state->prim.streams[0].vb = game::sp::gfx_buf->dynamicVertexBuffer->buffer;
+				state->prim.streams[0].offset = vert_offset;
+				state->prim.streams[0].stride = MODEL_VERTEX_STRIDE;
+				state->prim.device->SetStreamSource(0, game::sp::gfx_buf->dynamicVertexBuffer->buffer, vert_offset, MODEL_VERTEX_STRIDE);
+			}
+		}
+
+		{
+			// needed or game renders mesh with shaders
+			state->prim.device->SetVertexShader(nullptr);
+			state->prim.device->SetPixelShader(nullptr);
+
+			// vertex format
+			state->prim.device->SetFVF(MODEL_VERTEX_FORMAT);
+
+			// #
+			// build world matrix
+
+			for (auto index = 0u; index < draw_stream->smodelCount; index++)
+			{
+				const auto inst = &game::sp::rgp->world->dpvs.smodelDrawInsts[draw_stream->smodelList[index]];
+
+				float mtx[4][4] = {};
+				const auto scale = src->skinnedPlacement.scale;
+
+				// inlined ikMatrixSet44
+				mtx[0][0] = inst->placement.axis[0][0] * scale;
+				mtx[0][1] = inst->placement.axis[0][1] * scale;
+				mtx[0][2] = inst->placement.axis[0][2] * scale;
+				mtx[0][3] = 0.0f;
+
+				mtx[1][0] = inst->placement.axis[1][0] * scale;
+				mtx[1][1] = inst->placement.axis[1][1] * scale;
+				mtx[1][2] = inst->placement.axis[1][2] * scale;
+				mtx[1][3] = 0.0f;
+
+				mtx[2][0] = inst->placement.axis[2][0] * scale;
+				mtx[2][1] = inst->placement.axis[2][1] * scale;
+				mtx[2][2] = inst->placement.axis[2][2] * scale;
+				mtx[2][3] = 0.0f;
+
+				mtx[3][0] = inst->placement.origin[0];
+				mtx[3][1] = inst->placement.origin[1];
+				mtx[3][2] = inst->placement.origin[2];
+				mtx[3][3] = 1.0f;
+
+				// set world matrix
+				state->prim.device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
+
+				// draw the prim
+				state->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, start_index, surf->triCount);
+			}
+		}
+
+		state->prim.device->SetFVF(NULL);
 	}
 
 	// *
@@ -1441,10 +1614,13 @@ namespace components::sp
 		utils::hook::nop(0x73C977, 6);
 		utils::hook(0x73C977, R_DrawXModelSkinnedUncached_stub, HOOK_JUMP).install()->quick(); // eg. viewmodel hands
 
+		// ^ rigid skinned (only very few models) - doesnt render?
+		//utils::hook::nop(0x73DFAA, 6);
+		//utils::hook(0x73DFAA, R_DrawXModelSkinnedUncached_stub2, HOOK_JUMP).install()->quick();
+
 		// #
 		// TODO fixed-function rendering of static skinned models
-		//utils::hook(0x65618E, R_DrawStaticModelsSkinnedDrawSurf, HOOK_CALL).install()->quick();
-		//utils::hook::nop(0x73E478, 5);
+		utils::hook(0x749F6A, R_DrawStaticModelsSkinnedDrawSurf, HOOK_CALL).install()->quick();
 
 		// #
 		// fixed-function rendering of world surfaces (R_TessTrianglesPreTessList)

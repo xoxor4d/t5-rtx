@@ -3,9 +3,7 @@
 
 // TODO:
 // * fix vid_restart (currently freezing - attempted fix is semi working - disabled for now)
-// * r_forcelod
 // * port fx sphere culling from t4
-// * game_mod compatibility (ASSERTS caused by R_Init not being called from the renderer thread)
 
 using namespace game::sp;
 namespace components::sp
@@ -73,9 +71,9 @@ namespace components::sp
 		}
 	}
 
-	void fix_aspect_ratio(int* window_parms)
+	void fix_aspect_ratio(game::GfxWindowParms* window_parms)
 	{
-		*reinterpret_cast<float*>(0x3966168) = static_cast<float>(window_parms[7]) / static_cast<float>(window_parms[8]);
+		*reinterpret_cast<float*>(0x3966168) = (float)window_parms->displayWidth / (float)window_parms->displayHeight; //static_cast<float>(window_parms[7]) / static_cast<float>(window_parms[8]);
 	}
 
 	void __declspec(naked) fix_aspect_ratio_stub()
@@ -83,13 +81,14 @@ namespace components::sp
 		const static uint32_t retn_addr = 0x6B69BE;
 		__asm
 		{
-			pop		eax;
 			pushad;
 			push	eax;
 			call	fix_aspect_ratio;
 			add		esp, 4;
 			popad;
-			push	eax;
+
+			xor		eax, eax;
+			mov		eax, 1;
 
 			jmp		retn_addr;
 		}
@@ -193,7 +192,6 @@ namespace components::sp
 			jmp		retn_addr;
 		}
 	}
-
 
 	void force_renderer_dvars()
 	{
@@ -309,7 +307,7 @@ namespace components::sp
 			TranslateMessage(&msg);
 			DispatchMessageA(&msg);
 
-#if DEBUG
+#ifdef DEBUG_WINPROC
 			printf("Msg loop: %d \n", msg.message);
 #endif
 		}
@@ -377,6 +375,100 @@ namespace components::sp
 		}
 	}
 
+	int forcelod_get_lod(const int lod_count)
+	{
+		const auto& r_forceLod = game::sp::Dvar_FindVar("r_forceLod");
+		//const auto& r_warm_static = game::sp::Dvar_FindVar("r_warm_static");
+
+		if (r_forceLod->current.integer > lod_count // force lowest possible LOD
+			|| (r_forceLod->current.integer >= lod_count)) // force second lowest possible LOD
+		{
+			return lod_count - 1 >= 0 ? lod_count - 1 : 0;
+		}
+
+		return r_forceLod->current.integer;
+	}
+
+	int forcelod_is_enabled()
+	{
+		const auto& r_forceLod = game::sp::Dvar_FindVar("r_forceLod");
+
+		// 4 = none - disabled
+		if (r_forceLod->current.integer == r_forceLod->reset.integer)
+		{
+			return 0;
+		}
+
+		return 1;
+	}
+
+	int xmodel_get_lod_for_dist_global_1 = 0;
+	__declspec(naked) void XModelGetLodForDist_stub()
+	{
+		const static uint32_t break_addr = 0x523BF6;
+		const static uint32_t og_logic_addr = 0x523BE0;
+		__asm
+		{
+			pushad;
+			push	ecx;					// save ecx
+			call	forcelod_is_enabled;
+			cmp		eax, 1;
+			pop		ecx;					// restore ecx
+			jne		OG_LOGIC;				// if r_forceLod != 1
+
+			push	ecx;					// holds model->numLods
+			call	forcelod_get_lod;
+			add		esp, 4;
+			mov		xmodel_get_lod_for_dist_global_1, eax;
+			popad;
+
+			mov		eax, xmodel_get_lod_for_dist_global_1; // move returned lodindex into the register the game expects it to be
+			jmp		break_addr;
+
+
+		OG_LOGIC:
+			popad;
+			lea     edx, [esi + 0x28];
+			jmp		og_logic_addr;
+		}
+	}
+
+	void main_module::setup_sky_image(game::GfxImage* skyimg)
+	{
+		if (!main_module::m_sky_texture)
+		{
+			if (skyimg && skyimg->texture.cubemap)
+			{
+				const auto dev = game::sp::dx->device;
+
+				D3DSURFACE_DESC desc;
+				skyimg->texture.cubemap->GetLevelDesc(0, &desc);
+
+				// create texture with same desc
+				dev->CreateTexture(desc.Width, desc.Height, 1, desc.Usage, desc.Format, desc.Pool, &main_module::m_sky_texture, nullptr);
+
+				D3DLOCKED_RECT lockedRect1;
+				skyimg->texture.cubemap->LockRect(D3DCUBEMAP_FACE_POSITIVE_X, 0, &lockedRect1, nullptr, 0);
+
+				IDirect3DSurface9* cube_surf;
+				skyimg->texture.cubemap->GetCubeMapSurface(D3DCUBEMAP_FACE_POSITIVE_X, 0, &cube_surf);
+
+				IDirect3DSurface9* sky_surf;
+				main_module::m_sky_texture->GetSurfaceLevel(0, &sky_surf);
+
+
+				dev->UpdateSurface(cube_surf, nullptr, sky_surf, NULL);
+
+				//dev->StretchRect(cube_surf, nullptr, sky_surf, nullptr, D3DTEXF_LINEAR);
+
+				cube_surf->Release();
+				sky_surf->Release();
+				skyimg->texture.cubemap->UnlockRect(D3DCUBEMAP_FACE_POSITIVE_X, 0);
+				//RECT sourceRect;
+				//dev->UpdateSurface(&lockedRect, &sourceRect, sky_surf, NULL);
+			}
+		}
+	}
 
 	// *
 	// Event stubs
@@ -386,11 +478,22 @@ namespace components::sp
 	{
 		map_settings::get()->set_settings_for_loaded_map();
 		rtx::set_dvar_defaults();
+
+		if (main_module::m_sky_texture)
+		{
+			main_module::m_sky_texture->Release();
+			main_module::m_sky_texture = nullptr;
+		}
 	}
 
 	// > fixed_function::free_fixed_function_buffers_stub
 	void main_module::on_map_shutdown()
 	{
+		if (main_module::m_sky_texture)
+		{
+			main_module::m_sky_texture->Release();
+			main_module::m_sky_texture = nullptr;
+		}
 	}
 
 	void ui_3d_render_to_texture(game::GfxViewInfo* view)
@@ -483,26 +586,28 @@ namespace components::sp
 		return false;
 	}
 
-	//void switch_material(game::switch_material_t* swm, const char* material_name)
-	//{
-	//	if (const auto	material = Material_RegisterHandle(material_name, 3);
-	//		material)
-	//	{
-	//		swm->material = material;
-	//		swm->technique = nullptr;
+	bool switch_material(game::switch_material_t* swm, const char* material_name)
+	{
+		if (const auto	material = Material_RegisterHandle(material_name);
+			material && material->textureTable && material->textureTable->u.image && material->textureTable->u.image->name
+			&& std::string_view(material->textureTable->u.image->name) != "default")
+		{
+			swm->material = material;
+			swm->technique = nullptr;
 
-	//		if (is_valid_technique_for_type(material, swm->technique_type))
-	//		{
-	//			swm->technique = material->techniqueSet->remappedTechniqueSet->techniques[swm->technique_type];
-	//		}
+			if (is_valid_technique_for_type(material, swm->technique_type))
+			{
+				swm->technique = material->u_techset.techniqueSet->techniques[swm->technique_type];
+			}
 
-	//		swm->switch_material = true;
-	//		return;
-	//	}
+			swm->switch_material = true;
+			return true;
+		}
 
-	//	// return stock material if the above failed
-	//	swm->material = swm->current_material;
-	//}
+		// return stock material if the above failed
+		swm->material = swm->current_material;
+		return false;
+	}
 
 	void switch_technique(game::switch_material_t* swm, game::Material* material)
 	{
@@ -525,6 +630,11 @@ namespace components::sp
 
 	int r_set_material(game::GfxCmdBufSourceState* source, game::GfxCmdBufState* state, game::GfxDrawSurf drawSurf, const game::MaterialTechniqueType type)
 	{
+		if (!state->material)
+		{
+			return 0;
+		}
+
 		game::switch_material_t mat = {};
 
 		mat.current_material = game::sp::rgp->sortedMaterials[(drawSurf.packed >> 31) & 4095];
@@ -535,15 +645,39 @@ namespace components::sp
 		mat.technique_type = type;
 
 
-		if (utils::starts_with(mat.current_material->info.name, "wc/sky_"))
+		//if (utils::starts_with(mat.current_material->info.name, "wc/sky_"))
+		//{
+		//	mat.technique_type = game::TECHNIQUE_UNLIT;
+		//	const auto ui3d_tex = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_IDENTITY_NORMAL_MAP]->texture.basemap;
+		//	if (ui3d_tex)
+		//	{
+		//		game::sp::dx->device->SetTexture(0, ui3d_tex);
+		//	}
+		//	//switch_material(&mat, "mc/mtl_test_sphere_silver");
+		//}
+
+		if (state->material->info.sortKey == 5)
 		{
-			mat.technique_type = game::TECHNIQUE_UNLIT;
-			const auto ui3d_tex = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_IDENTITY_NORMAL_MAP]->texture.basemap;
-			if (ui3d_tex)
+			if (state->material->textureTable->u.image->mapType == 5)
 			{
-				game::sp::dx->device->SetTexture(0, ui3d_tex);
+				// maptype 5 = cube so load mat 'mc/mtl_skybox_sp_kowloon' instead?
+				mat.technique_type = game::TECHNIQUE_UNLIT;
+				switch_material(&mat, "mc/mtl_skybox_sp_kowloon");
+
+				//if (switch_material(&mat, "mc/mtl_skybox_sp_kowloon"))
+				//{
+					//if (!switch_material(&mat, "identityNormalMap"))
+					//{
+					//	int x = 1;
+					//	//if (const auto identity = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_IDENTITY_NORMAL_MAP];
+					//	//	identity && identity->texture.basemap)
+					//	//{
+					//	//	state->material->textureTable->u.image = identity;
+					//	//	//game::sp::dx->device->SetTexture(0, identity->texture.basemap);
+					//	//}
+					//}
+				//}
 			}
-			//switch_material(&mat, "mc/mtl_test_sphere_silver");
 		}
 
 		if (!mat.switch_material && !mat.switch_technique && !mat.switch_technique_type)
@@ -589,6 +723,11 @@ namespace components::sp
 
 			//const auto skyimg = reinterpret_cast<game::GfxImage**>(0x408930C);
 			//game::sp::dx->device->SetTexture(0, skyimg[0]->texture.basemap);
+
+			/*if (main_module::m_sky_texture)
+			{
+				game::sp::dx->device->SetTexture(0, main_module::m_sky_texture);
+			}*/
 		}
 
 		state->origTechType = state->techType;
@@ -718,6 +857,114 @@ namespace components::sp
 		}
 	}
 
+	void load_common_fast_files()
+	{
+		auto i = 0u;
+		game::XZoneInfo info[2];
+
+		//DB_ResetZoneSize(0);
+		utils::hook::call<void(__cdecl)(int)>(0x621530)(0);
+
+		if (const auto var = game::sp::Dvar_FindVar("useFastFile"); 
+			var && var->current.enabled)
+		{
+			//DB_ReleaseXAssets();
+			utils::hook::call<void(__cdecl)()>(0x62C260)();
+		}
+
+		if (const auto var = game::sp::Dvar_FindVar("zombietron");
+			var && var->current.enabled)
+		{
+			info[0].name = nullptr;
+			info[0].allocFlags = 0;
+			info[0].freeFlags = 256;
+
+			i++;
+
+			if (game::sp::DB_FileExists("xcommon_rtx", game::DB_PATH_ZONE))
+			{
+				info[i].name = "xcommon_rtx";
+				info[i].allocFlags = 256;
+				info[i].freeFlags = 0;
+				++i;
+			}
+
+			//DB_LoadXAssets(info, 1u, 0);
+			utils::hook::call<void(__cdecl)(game::XZoneInfo*, std::uint32_t, int)>(0x631B10)(info, i, 0);
+			return;
+		}
+
+		if (const auto var = game::sp::Dvar_FindVar("zombiemode");
+			var && var->current.enabled)
+		{
+			//if (DB_IsZoneLoaded((unsigned __int8*)"common_zombie"))
+			if (utils::hook::call<bool(__cdecl)(const char*)>(0x528A20)("common_zombie"))
+			{
+				return;
+			}
+			info[0].name = "common_zombie";
+		}
+		else
+		{
+			//if (DB_IsZoneLoaded((unsigned __int8*)"common"))
+			if (utils::hook::call<bool(__cdecl)(const char*)>(0x528A20)("common"))
+			{
+				return;
+			}
+			info[0].name = "common";
+		}
+
+		info[0].allocFlags = 256;
+		info[0].freeFlags = 0;
+		++i;
+
+		if (!utils::hook::call<bool(__cdecl)(const char*)>(0x528A20)("xcommon_rtx") // DB_IsZoneLoaded
+			&& game::sp::DB_FileExists("xcommon_rtx", game::DB_PATH_ZONE))
+		{
+			info[i].name = "xcommon_rtx";
+			info[i].allocFlags = 256;
+			info[i].freeFlags = 0;
+			++i;
+		}
+
+		//DB_LoadXAssets(info, 1u, 0);
+		utils::hook::call<void(__cdecl)(game::XZoneInfo*, std::uint32_t, int)>(0x631B10)(info, i, 0);
+	}
+
+	void vid_restart_stub()
+	{
+		// R_ResizeWindow
+		utils::hook::call<void(__cdecl)()>(0x6B7E10)();
+	}
+
+	void vid_restart_post_stub()
+	{
+		// ResetDevice
+		//utils::hook::call<void(__cdecl)()>(0x6B86C0)();
+
+		const auto clsvid = reinterpret_cast<game::vidConfig_t*>(0x2EE750C);
+		const auto vid = reinterpret_cast<game::vidConfig_t*>(0x3966148);
+
+		// CL_SetupViewport
+		utils::hook::call<void(__cdecl)()>(0x481F70)();
+
+		const auto ui = reinterpret_cast<game::uiInfo_s*>(0x256AA50);
+		//utils::hook::call<void(__cdecl)(int* width, int* height, float* aspect)>(0x4B3720)(&ui->uiDC.screenWidth, &ui->uiDC.screenHeight, &ui->uiDC.screenAspect);
+		//ui->uiDC.bias = (ui->uiDC.screenWidth * 480 <= ui->uiDC.screenHeight * 640) ? 0.0f : (static_cast<std::float_t>(ui->uiDC.screenWidth) - static_cast<std::float_t>(ui->uiDC.screenHeight) * 1.3333334f) * 0.5f;
+
+		/*game::sp::gfxCmdBufSourceState->sceneViewport.width = (int)vid->displayWidth;
+		game::sp::gfxCmdBufSourceState->sceneViewport.height = (int)vid->displayHeight;
+		game::sp::gfxCmdBufState->viewport.width = (int)vid->displayWidth;
+		game::sp::gfxCmdBufState->viewport.height = (int)vid->displayHeight;
+
+		game::sp::gfxCmdBufSourceState->renderTargetWidth = (int)vid->displayWidth;
+		game::sp::gfxCmdBufSourceState->renderTargetHeight = (int)vid->displayHeight;
+		game::sp::dx->windows->width = (int)vid->displayWidth;
+		game::sp::dx->windows->height = (int)vid->displayHeight;*/
+
+		//game::sp::dx->resizeWindow = true;
+ 	}
+
 	main_module::main_module()
 	{
 		// rb_fullbrightdrawcommands :: call RB_UI3D_RenderToTexture to update the main menu 3d hud (tv)
@@ -834,8 +1081,14 @@ namespace components::sp
 
 
 		// #
+		// implement r_forcelod logic for skinned models (R_SkinXModel)
+		utils::hook(0x523BD8, XModelGetLodForDist_stub, HOOK_JUMP).install()->quick();
+
+
+		// #
 		// disable loading of specular and normalmaps (de-clutter remix ui)
-		if (!game::is_game_mod && !flags::has_flag("load_normal_spec"))
+		// * only enable for development reasons because it currently breaks streaming
+		if (!game::is_game_mod && flags::has_flag("disable_normal_spec"))
 		{
 			utils::hook::nop(0x70A4CD, 5);
 			utils::hook::nop(0x736E19, 7); utils::hook(0x736E19, load_image_stub, HOOK_JUMP).install()->quick();
@@ -844,11 +1097,13 @@ namespace components::sp
 			utils::hook(0x725BC4, r_setsampler_stub, HOOK_JUMP).install()->quick();
 		}
 
+		// load_common_fast_files
+		utils::hook(0x4C8966, load_common_fast_files, HOOK_CALL).install()->quick();
 
 
+		// #
 		// game_mod patches by nukem - https://github.com/Nukem9/LinkerMod/blob/development/components/game_mod/dllmain.cpp
 		// only apply if game_mod isn't loaded
-
 		if (!game::is_game_mod)
 		{
 			// Remove improper quit popup
@@ -895,7 +1150,23 @@ namespace components::sp
 		utils::hook::set<BYTE>(0x6B7282 + 2, 0x04); // set max array size check to 1024 (check within loop)
 
 		// :*
-		utils::hook(0x6B6923, fix_aspect_ratio_stub, HOOK_JUMP).install()->quick();
+		utils::hook::nop(0x6B6905, 5); utils::hook::nop(0x6B6910, 6);
+		utils::hook(0x6B6910, fix_aspect_ratio_stub, HOOK_JUMP).install()->quick();
+
+		// vid restart tries
+		utils::hook::set<BYTE>(0x6EB28F, 0xEB);
+		utils::hook::nop(0x6B7E01, 2); // do not sleep in R_CheckResizeWindow
+		utils::hook::nop(0x6EBF14, 5); // do not call 'RB_SwapBuffers' in RB_RenderThread
+
+		//utils::hook::set<BYTE>(0x481F85, 0xEB);
+
+		utils::hook(0x5B52B8, vid_restart_stub, HOOK_CALL).install()->quick(); // vid_restart
+		utils::hook(0x5B52DA, vid_restart_post_stub, HOOK_CALL).install()->quick(); // vid_restart
+
+		utils::hook(0x5D2F2C, vid_restart_stub, HOOK_CALL).install()->quick(); // vid_restart_complete
+		utils::hook(0x5D2F4B, vid_restart_post_stub, HOOK_CALL).install()->quick(); // vid_restart_complete
+		// call 0x883020 CL_SetupViewport after resize but copy vidConfig to cls before
+		// vidConfig_t @ 0x3966148
 
 		// ------------------------------------------------------------------------
 

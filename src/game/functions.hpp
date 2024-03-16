@@ -51,7 +51,10 @@ namespace game
 		static utils::function<dvar_s* __cdecl (const char* name, const char** data, int value, dvar_flags flags, const char* desc)> Dvar_RegisterEnum = 0x51BD00;
 		static utils::function<dvar_s* __cdecl (const char* name, bool value, dvar_flags flags, const char* desc)> Dvar_RegisterBool = 0x45BB20;
 
-		//static utils::function<Material* __fastcall (const char* name, int)> Material_RegisterHandle = 0x6E9C20;
+		// 61BE00
+		static utils::function<Material* __cdecl (const char* name)> Material_RegisterHandle = 0x6D4080;
+		static utils::function<BOOL __cdecl (game::dvar_s*)> Dvar_HasLatchedValue = 0x6D4080;
+		static utils::function<void __cdecl (game::dvar_s*)> Dvar_MakeLatchedCurrent = 0x61CFC0;
 
 		//static utils::function<void __fastcall (int, GfxCmdBufSourceState*)> R_Set3D = 0x7244C0;
 
@@ -85,6 +88,8 @@ namespace game
 
 		//std::int16_t G_ModelIndex(const char* model_name /*eax*/); // ASM
 		//extern bool DB_FileExists(const char* file_name, game::DB_FILE_EXISTS_PATH);
+		static utils::function<bool __cdecl (const char* name, game::DB_FILE_EXISTS_PATH src)> DB_FileExists = 0x5B4B50;
+
 
 		//static utils::function<game::gentity_s* ()> G_Spawn = 0x54EAB0;
 		//static utils::function<bool(game::gentity_s*)> G_CallSpawnEntity = 0x5465A0;

@@ -64,6 +64,10 @@ remix runtime - https://github.com/NVIDIAGameWorks/dxvk-remix/actions
 <br>
 <br>
 
+## ⚠️ Current issues:
+- changing resolution or anything else that requires the game to restart the renderer WILL currently crash the game
+- the main menu will be darker after a map was loaded (reason unkown)
+
 ## Compiling yourself:
 1. setup `CODBO1_ROOT` environment variable with path to your CoD-BO1 directory (optional)
 2. run `generate-buildfiles_vs22.bat` to generate build files (build folder)

@@ -75,6 +75,25 @@ namespace game
 		char buffer[256];
 	};
 
+	struct vidConfig_t
+	{
+		unsigned int sceneWidth;
+		unsigned int sceneHeight;
+		unsigned int displayWidth;
+		unsigned int displayHeight;
+		unsigned __int16 outputDisplayWidth;
+		unsigned __int16 outputDisplayHeight;
+		unsigned int displayFrequency;
+		bool isToolMode;
+		int isFullscreen;
+		float aspectRatioWindow;
+		float aspectRatioScenePixel;
+		float aspectRatioDisplayPixel;
+		unsigned int maxTextureSize;
+		unsigned int maxTextureMaps;
+		bool deviceSupportsGamma;
+	};
+
 	struct CmdArgs
 	{
 		int nesting;
@@ -119,6 +138,35 @@ namespace game
 		float zFar;
 	};
 
+	struct cursor_t
+	{
+		float x;
+		float y;
+	};
+
+	struct UiContext
+	{
+		int contextIndex;
+		float bias;
+		int realTime;
+		int frameTime;
+		cursor_t cursor;
+		cursor_t prevCursor;
+		int isCursorVisible;
+		int screenWidth;
+		int screenHeight;
+		float screenAspect;
+		float FPS;
+		float blurRadiusOut;
+		// ...
+	};
+
+	struct uiInfo_s
+	{
+		UiContext uiDC;
+		// ....
+	};
+
 	struct ScreenPlacement
 	{
 		float scaleVirtualToReal[2];
@@ -136,6 +184,20 @@ namespace game
 		float realTweakableMin[2];
 		float realTweakableMax[2];
 		float subScreen[2];
+	};
+
+	struct GfxWindowParms
+	{
+		HWND__* hwnd;
+		int hz;
+		bool fullscreen;
+		int x;
+		int y;
+		int sceneWidth;
+		int sceneHeight;
+		int displayWidth;
+		int displayHeight;
+		int aaSamples;
 	};
 
 	struct DpvsPlane
@@ -633,7 +695,7 @@ namespace game
 
 	struct GfxVertexBufferState
 	{
-		volatile int used;
+		int used;
 		int total;
 		IDirect3DVertexBuffer9* buffer;
 		char* verts;
@@ -2236,6 +2298,20 @@ namespace game
 		int evValue2;
 		int evPtrLength;
 		void* evPtr;
+	};
+
+	enum DB_FILE_EXISTS_PATH
+	{
+		DB_PATH_ZONE = 0,
+		DB_PATH_MOD = 1,
+		DB_PATH_USERMAPS = 2
+	};
+
+	struct XZoneInfo
+	{
+		const char* name;
+		int allocFlags;
+		int freeFlags;
 	};
 
 	enum dvarType_t

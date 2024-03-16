@@ -12,6 +12,9 @@ namespace components::sp
 		static void on_map_load();
 		static void on_map_shutdown();
 
+		static void setup_sky_image(game::GfxImage* skyimg);
+		static inline IDirect3DTexture9* m_sky_texture = nullptr;
+
 	private:
 		static inline bool noborder_active = false;
 		static inline int noborder_titlebar_height = 0;

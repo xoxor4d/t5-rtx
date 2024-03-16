@@ -102,6 +102,16 @@ namespace components::sp
 			"- all-but-models: disable culling of all surfaces excluding models");
 #endif
 
+		if (!flags::has_flag("no_forced_lod"))
+		{
+			// force lod to LOD0
+			if (const auto var = Dvar_FindVar("r_forceLod"); var)
+			{
+				var->current.integer = 0;
+				var->flags = game::dvar_flags::userinfo;
+			}
+		}
+
 		if (const auto var = Dvar_FindVar("r_lodScaleRigid"); var)
 		{
 			var->current.value = 1.0f;
