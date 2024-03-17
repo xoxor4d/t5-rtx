@@ -385,8 +385,8 @@ namespace components::sp
 		// disable mins culling 
 		utils::hook::nop(0x7215D9, 6);
 
-		// ^ for smodels
-		// 0x72173F -> 2 byte -> jne 0072175F
+		// ^ for smodels - TODO - make dvar for this?
+		utils::hook::nop(0x72173F, 2);
 
 		// never cull brushmodels via dpvs
 		utils::hook::nop(0x74784D, 2);

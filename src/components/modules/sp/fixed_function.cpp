@@ -298,13 +298,22 @@ namespace components::sp
 					if (const auto identity = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_IDENTITY_NORMAL_MAP];
 							identity && identity->texture.basemap)
 					{
-						game::sp::dx->device->SetTexture(0, identity->texture.basemap);
+						// reduce rapid sky switching on some maps?
+						if (fixed_function::last_valid_sky_texture)
+						{
+							game::sp::dx->device->SetTexture(0, fixed_function::last_valid_sky_texture);
+						}
+						else
+						{
+							game::sp::dx->device->SetTexture(0, identity->texture.basemap);
+						}
 					}
 				}
 				else
 				{
 					// non cubemap images or cubemaps that were replaced with kowloon
 					game::sp::dx->device->SetTexture(0, state->material->textureTable->u.image->texture.basemap);
+					fixed_function::last_valid_sky_texture = state->material->textureTable->u.image->texture.basemap;
 				}
 
 				/*main_module::setup_sky_image(state->material->textureTable->u.image);
@@ -482,6 +491,7 @@ namespace components::sp
 			//R_FatalLockError(hr);
 			//game::sp::Com_Error(0, "Fatal lock error :: R_SetIndexData");
 			__debugbreak();
+			return -1;
 		}
 
 		if (buffer_data)
@@ -952,6 +962,8 @@ namespace components::sp
 		unsigned int base_index = 0u, count = 0u, tri_count = 0u;
 		auto base_vertex = -1;
 
+		bool early_out = false;
+
 		while (R_ReadBspDrawSurfs(&drawStream->primDrawSurfPos, &list, &count))
 		{
 			for (auto index = 0u; index < count; ++index)
@@ -964,6 +976,12 @@ namespace components::sp
 					{
 						//const auto base = R_SetIndexData(state, &game::sp::rgp->world->draw.indices[prev_tris->baseIndex], tri_count);
 						const auto base = R_SetIndexData(state, &game::sp::get_g_world_draw()->indices[prev_tris->baseIndex], tri_count);
+						if (base < 0)
+						{
+							early_out = true;
+							break;
+						}
+
 						R_DrawBspTris(state, prev_tris, base, tri_count);
 					}
 
@@ -980,9 +998,14 @@ namespace components::sp
 
 				tri_count += bsp_surf->tris.triCount;
 			}
+
+			if (early_out)
+			{
+				break;
+			}
 		}
 
-		if (prev_tris)
+		if (!early_out && prev_tris)
 		{
 			const auto base = R_SetIndexData(state, &game::sp::get_g_world_draw()->indices[prev_tris->baseIndex], tri_count);
 			R_DrawBspTris(state, prev_tris, base, tri_count);

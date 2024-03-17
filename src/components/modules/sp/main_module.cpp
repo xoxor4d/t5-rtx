@@ -654,6 +654,8 @@ namespace components::sp
 			main_module::m_sky_texture->Release();
 			main_module::m_sky_texture = nullptr;
 		}
+
+		fixed_function::fixed_function::last_valid_sky_texture = nullptr;
 	}
 
 	// > fixed_function::free_fixed_function_buffers_stub
@@ -664,6 +666,8 @@ namespace components::sp
 			main_module::m_sky_texture->Release();
 			main_module::m_sky_texture = nullptr;
 		}
+
+		fixed_function::fixed_function::last_valid_sky_texture = nullptr;
 	}
 
 	void ui_3d_render_to_texture(game::GfxViewInfo* view)

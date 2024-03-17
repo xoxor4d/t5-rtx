@@ -5,7 +5,7 @@
 This client modification is made to make the game compatible with nvidia's [rtx-remix](https://github.com/NVIDIAGameWorks/rtx-remix).  
 How? By manually reimplementing fixed function rendering :) 
 
-It does __not__ come with a 'rtx mod' -> meaning no custom models nor materials.  
+It does come with a sample 'rtx mod' which places a few lights and has few custom materials.  
 
 <br>
 
@@ -56,6 +56,7 @@ remix runtime - https://github.com/NVIDIAGameWorks/dxvk-remix/actions
 ## ⚠️ Current issues:
 - vid_restart (changing resolution / refreshrate) should generally work but might cause the game to be unstable afterwards
 - main menu TV might behave odd and will be darker after a map was loaded (changing hash etc)
+- there are still a few objects that wobble, indicating that they are rendered using shaders
 
 <br>
 
