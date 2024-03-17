@@ -9,6 +9,8 @@ namespace components::sp
 		~main_module() = default;
 		const char* get_name() override { return "main_module_sp"; }
 
+		static DWORD WINAPI find_window_loop(LPVOID);
+
 		static void on_map_load();
 		static void on_map_shutdown();
 

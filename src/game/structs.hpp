@@ -75,6 +75,25 @@ namespace game
 		char buffer[256];
 	};
 
+	struct ScreenPlacement
+	{
+		float scaleVirtualToReal[2];
+		float scaleVirtualToFull[2];
+		float scaleRealToVirtual[2];
+		float virtualViewableMin[2];
+		float virtualViewableMax[2];
+		float virtualTweakableMin[2];
+		float virtualTweakableMax[2];
+		float realViewportBase[2];
+		float realViewportSize[2];
+		float realViewportMid[2];
+		float realViewableMin[2];
+		float realViewableMax[2];
+		float realTweakableMin[2];
+		float realTweakableMax[2];
+		float subScreen[2];
+	};
+
 	struct vidConfig_t
 	{
 		unsigned int sceneWidth;
@@ -165,25 +184,6 @@ namespace game
 	{
 		UiContext uiDC;
 		// ....
-	};
-
-	struct ScreenPlacement
-	{
-		float scaleVirtualToReal[2];
-		float scaleVirtualToFull[2];
-		float scaleRealToVirtual[2];
-		float virtualViewableMin[2];
-		float virtualViewableMax[2];
-		float virtualTweakableMin[2];
-		float virtualTweakableMax[2];
-		float realViewportBase[2];
-		float realViewportSize[2];
-		float realViewportMid[2];
-		float realViewableMin[2];
-		float realViewableMax[2];
-		float realTweakableMin[2];
-		float realTweakableMax[2];
-		float subScreen[2];
 	};
 
 	struct GfxWindowParms

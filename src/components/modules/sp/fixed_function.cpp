@@ -423,7 +423,7 @@ namespace components::sp
 			}
 		}
 
-		if (current_material_name == std::string_view("mc/mtl_ui3d_0")
+		if (current_material_name == std::string_view("mc/mtl_ui3d_0") 
 			|| current_material_name == std::string_view("mc/mtl_ui3d_1"))
 		{
 			if (const auto ui3d_tex = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_UI3D];

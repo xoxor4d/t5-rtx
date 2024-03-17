@@ -2,12 +2,49 @@
 #define HIDWORD(x)  (*((DWORD*)&(x)+1))
 
 // TODO:
-// * fix vid_restart (currently freezing - attempted fix is semi working - disabled for now)
+// * changing hash on ui3d and cinematic (tv's) -> not unlit
 // * port fx sphere culling from t4
 
 using namespace game::sp;
 namespace components::sp
 {
+	// rename window title to get rid of the trademark (R) which currently causes issues with the remix toolkit
+	DWORD WINAPI main_module::find_window_loop(LPVOID)
+	{
+		const char* hwnd_title = "Call of Duty\xAE: BlackOps";
+		std::uint32_t _time = 0;
+
+		// wait for window creation
+		while (!game::main_window)
+		{
+			// get main window hwnd
+			game::main_window = FindWindowExA(nullptr, nullptr, "CoDBlackOps", hwnd_title);
+
+			Sleep(100); _time += 100;
+			if (_time >= 30000)
+			{
+				return TRUE;
+			}
+		}
+
+		static auto version_str = std::string("t5-rtx");
+		static bool version_str_init = false;
+
+#ifndef GIT_DESCRIBE
+#define GIT_DESCRIBE ""
+#endif
+
+		if (!version_str_init)
+		{
+			version_str += "-"s + GIT_DESCRIBE;
+			version_str += game::is_game_mod ? " + game_mod" : "";
+			version_str_init = true;
+		}
+
+		SetWindowTextA(game::main_window, version_str.c_str());
+		return TRUE;
+	}
+
 	// *
 	// fix resolution issues by removing duplicates returned by EnumAdapterModes
 	// ^ this was fixed on the dxvk branch - TODO: remove when latest dxvk changes were merged into dxvk-remix
@@ -227,17 +264,150 @@ namespace components::sp
 	int relocate_r_init()
 	{
 		utils::hook::call<void(__cdecl)()>(0x6B82E0)(); // R_Init
+
+		CreateThread(nullptr, 0, main_module::find_window_loop, nullptr, 0, nullptr);
+
 		return utils::hook::call<int(__cdecl)()>(0x49D640)(); // related to g_connectpaths
 	}
 
-//#define RELOC_R_SHUTDOWN
+#define RELOC_R_SHUTDOWN
 #ifdef RELOC_R_SHUTDOWN
 	void reloc_r_shutdown()
 	{
+		game::main_window = nullptr;
+
 		// R_Shutdown
 		utils::hook::call<void(__cdecl)()>(0x6B83A0)();
 	}
+
+	__declspec(naked) void vid_restart_to_complete_stub()
+	{
+		const static uint32_t vid_restart_complete_addr = 0x5D2F00;
+		const static uint32_t retn_addr = 0x5B52DF;
+		__asm
+		{
+			call	vid_restart_complete_addr;
+			jmp		retn_addr;
+		}
+	}
 #endif
+
+//#define SEAMLESS_VID_RESTART_TEST
+#ifdef SEAMLESS_VID_RESTART_TEST
+	void vid_restart_stub()
+	{
+		// R_ResizeWindow
+		utils::hook::call<void(__cdecl)()>(0x6B7E10)();
+	}
+
+	void vid_restart_post_stub()
+	{
+
+		// R_ResizeWindow
+		//utils::hook::call<void(__cdecl)()>(0x6B7E10)(); // calling it here "fixes" ui but mouse is still fucked and so is aspectratio
+
+		// CL_SetupViewport
+		utils::hook::call<void(__cdecl)()>(0x481F70)();
+
+		// setting resizeWindow to true will trigger the logic in 'check_reset' below (running in 'R_IssueRenderCommands')
+		//game::sp::dx->resizeWindow = true;
+
+		const auto ui = reinterpret_cast<game::uiInfo_s*>(0x256AA50);
+		utils::hook::call<void(__cdecl)(int* width, int* height, float* aspect)>(0x4B3720)(&ui->uiDC.screenWidth, &ui->uiDC.screenHeight, &ui->uiDC.screenAspect);
+		ui->uiDC.bias = (ui->uiDC.screenWidth * 480 <= ui->uiDC.screenHeight * 640) ? 0.0f : (static_cast<std::float_t>(ui->uiDC.screenWidth) - static_cast<std::float_t>(ui->uiDC.screenHeight) * 1.3333334f) * 0.5f;
+
+		/*const auto clsvid = reinterpret_cast<game::vidConfig_t*>(0x2EE750C);
+		const auto vid = reinterpret_cast<game::vidConfig_t*>(0x3966148);
+
+		const auto scr_full_unsave = reinterpret_cast<game::ScreenPlacement*>(0xC78E90);
+		const auto scr_full = reinterpret_cast<game::ScreenPlacement*>(0xC78E18);
+		const auto scr_view = reinterpret_cast<game::ScreenPlacement*>(0xC78DA0);*/
+
+		/*game::sp::gfxCmdBufSourceState->sceneViewport.width = (int)vid->displayWidth;
+		game::sp::gfxCmdBufSourceState->sceneViewport.height = (int)vid->displayHeight;
+		game::sp::gfxCmdBufState->viewport.width = (int)vid->displayWidth;
+		game::sp::gfxCmdBufState->viewport.height = (int)vid->displayHeight;*/
+
+		//game::sp::gfxCmdBufSourceState->renderTargetWidth = (int)vid->displayWidth;
+		//game::sp::gfxCmdBufSourceState->renderTargetHeight = (int)vid->displayHeight;
+		//game::sp::dx->windows->width = (int)vid->displayWidth;
+		//game::sp::dx->windows->height = (int)vid->displayHeight;
+
+		/*game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.cullViewInfo.sceneViewport.width = (int)vid->displayWidth;
+		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.cullViewInfo.sceneViewport.height = (int)vid->displayHeight;
+		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.cullViewInfo.displayViewport.width = (int)vid->displayWidth;
+		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.cullViewInfo.displayViewport.height = (int)vid->displayHeight;
+		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.cullViewInfo.scissorViewport.width = (int)vid->displayWidth;
+		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.cullViewInfo.scissorViewport.height = (int)vid->displayHeight;*/
+
+		/*game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.s1.sceneViewport.width = (int)vid->displayWidth;
+		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.s1.sceneViewport.height = (int)vid->displayHeight;
+		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.s1.displayViewport.width = (int)vid->displayWidth;
+		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.s1.displayViewport.height = (int)vid->displayHeight;
+		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.s1.scissorViewport.width = (int)vid->displayWidth;
+		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.s1.scissorViewport.height = (int)vid->displayHeight;*/
+
+		// R_RecoverLostDevice
+		//utils::hook::call<void(__cdecl)()>(0x6B89C0)();
+	}
+
+	int check_reset()
+	{
+		if (game::sp::dx->resizeWindow)
+		{
+			utils::hook::call<void(__cdecl)()>(0x6B88C0)(); // R_ReleaseLostDeviceAssets
+			utils::hook::call<void(__cdecl)()>(0x6B70C0)(); // R_ReleaseForShutdownOrReset
+
+			// R_RecoverLostDevice
+			const auto ret = utils::hook::call<bool(__cdecl)()>(0x6B89C0)();
+
+			// never reaching the point that R_RecoverLostDevice returns true because the reset fails
+			// game crashes in a worker thread before
+			if (ret)
+			{
+				game::sp::dx->resizeWindow = false;
+			}
+
+			//utils::hook::call<void(__cdecl)()>(0x658F70)(); // R_WaitFrontendWorkerCmds
+			utils::hook::call<void(__cdecl)()>(0x47E3E0)(); // safely flush all workers
+
+			if (game::sp::gfx_buf->skinnedCacheLockAddr)
+			{
+				game::sp::gfx_buf->skinnedCacheLockAddr = 0;
+
+				// R_ToggleSmpFrame
+				utils::hook::call<void(__cdecl)()>(0x6D5AC0)();
+			}
+
+			return 0;
+		}
+
+		return 1;
+	}
+
+	__declspec(naked) void r_issuerendercmds_stub()
+	{
+		const static uint32_t skip_addr = 0x6D5938;
+		const static uint32_t retn_addr = 0x6D58A0;
+		__asm
+		{
+			pushad;
+			call	check_reset;
+			cmp		eax, 1;
+			je		OG_LOGIC;
+
+			popad;
+			jmp		skip_addr;
+
+		OG_LOGIC:
+			popad;
+			// og
+			mov[ecx + 0x16CF14], eax;
+			jmp		retn_addr;
+		}
+	}
+#endif
+
 
 	void rb_renderthread_stub()
 	{
@@ -502,6 +672,7 @@ namespace components::sp
 		{
 			// R_UI3D_SetupTextureWindow (we need to scale Y * 2 because its rendered at 1024x512 and it doesnt auto fit the screen)
 			utils::hook::call<void(__cdecl)(int window_index, float x, float y, float w, float h)>(0x6E21B0)(0, 0.0f, 0.0f, 1.0f, 2.0f);
+			utils::hook::call<void(__cdecl)(int window_index, float x, float y, float w, float h)>(0x6E21B0)(1, 0.0f, 0.0f, 1.0f, 2.0f);
 
 			// RB_UI3D_RenderToTexture
 			utils::hook::call<void(__cdecl)(const void* cmds, game::GfxUI3DBackend* rbUI3D, game::GfxCmdBufInput* input)>(0x6E26A0)(view->cmds, &view->rbUI3D, &view->input);
@@ -931,39 +1102,8 @@ namespace components::sp
 		utils::hook::call<void(__cdecl)(game::XZoneInfo*, std::uint32_t, int)>(0x631B10)(info, i, 0);
 	}
 
-	void vid_restart_stub()
-	{
-		// R_ResizeWindow
-		utils::hook::call<void(__cdecl)()>(0x6B7E10)();
-	}
+	
 
-	void vid_restart_post_stub()
-	{
-		// ResetDevice
-		//utils::hook::call<void(__cdecl)()>(0x6B86C0)();
-
-		const auto clsvid = reinterpret_cast<game::vidConfig_t*>(0x2EE750C);
-		const auto vid = reinterpret_cast<game::vidConfig_t*>(0x3966148);
-
-		// CL_SetupViewport
-		utils::hook::call<void(__cdecl)()>(0x481F70)();
-
-		const auto ui = reinterpret_cast<game::uiInfo_s*>(0x256AA50);
-		//utils::hook::call<void(__cdecl)(int* width, int* height, float* aspect)>(0x4B3720)(&ui->uiDC.screenWidth, &ui->uiDC.screenHeight, &ui->uiDC.screenAspect);
-		//ui->uiDC.bias = (ui->uiDC.screenWidth * 480 <= ui->uiDC.screenHeight * 640) ? 0.0f : (static_cast<std::float_t>(ui->uiDC.screenWidth) - static_cast<std::float_t>(ui->uiDC.screenHeight) * 1.3333334f) * 0.5f;
-
-		/*game::sp::gfxCmdBufSourceState->sceneViewport.width = (int)vid->displayWidth;
-		game::sp::gfxCmdBufSourceState->sceneViewport.height = (int)vid->displayHeight;
-		game::sp::gfxCmdBufState->viewport.width = (int)vid->displayWidth;
-		game::sp::gfxCmdBufState->viewport.height = (int)vid->displayHeight;
-
-		game::sp::gfxCmdBufSourceState->renderTargetWidth = (int)vid->displayWidth;
-		game::sp::gfxCmdBufSourceState->renderTargetHeight = (int)vid->displayHeight;
-		game::sp::dx->windows->width = (int)vid->displayWidth;
-		game::sp::dx->windows->height = (int)vid->displayHeight;*/
-
-		//game::sp::dx->resizeWindow = true;
- 	}
 
 	main_module::main_module()
 	{
@@ -996,17 +1136,56 @@ namespace components::sp
 		utils::hook::nop(0x6EBEC9, 5); // do not call r_init from the renderer thread
 		utils::hook(0x52F28A, relocate_r_init, HOOK_CALL).install()->quick(); // TODO: reimpl. R_Init in various other functions
 
-#ifdef RELOC_R_SHUTDOWN // semi working
+#ifdef RELOC_R_SHUTDOWN
+		// reimplement 'R_Shutdown' in 'CL_ShutdownRenderer'
 		utils::hook(0x6B8559, reloc_r_shutdown, HOOK_CALL).install()->quick();
-		utils::hook::nop(0x6EBEE7, 7);
-		utils::hook::set<BYTE>(0x6EBEEE, 0xEB);
-		utils::hook::nop(0x6B855E, 7);
-		utils::hook::set<BYTE>(0x6B8565, 0xEB);
+		utils::hook::nop(0x6B855E, 7); // ^ skip for loop in hooked func
+		utils::hook::set<BYTE>(0x6B8565, 0xEB); // ^ skip for loop in hooked func
 
-		utils::hook::nop(0x5B52AE, 5); // do not check window resize in CL_Vid_Restart_f
-		utils::hook::nop(0x5D2F2C, 5); // do not check window resize in CL_Vid_Restart_FULL_f
-		utils::hook::set<BYTE>(0x5D2F59, 0xEB); // ^ allow on listen server
+		// never use seamless resize logic in vid_restart_complete
+		utils::hook::set<BYTE>(0x5D2F2A, 0xEB);
+
+		// allow vid_restart_complete on listen server
+		utils::hook::set<BYTE>(0x5D2F59, 0xEB);
+
+		// call vid_restart_complete when vid_restart is called
+		utils::hook(0x5B52A0, vid_restart_to_complete_stub, HOOK_CALL).install()->quick(); 
+
+		// crashing func when quit calls 'R_Shutdown'
+		utils::hook::nop(0x6B8518, 5);
+		utils::hook::nop(0x6B71EC, 5);
+
+		// R_ShutdownDirect3DInternal:: do not release dx.d3d9 (remix)
+		utils::hook::set<BYTE>(0x6B8189, 0xEB);
+
+		// change Error: 'Weapon index mismatch for ..' from DROP to disconnect (no msg popup)
+		utils::hook::set<BYTE>(0x699B1C + 1, 0x03);
+
+		// crashing snd func
+		//utils::hook::nop(0x5DA453, 5);
 #endif
+
+
+#ifdef SEAMLESS_VID_RESTART_TEST
+		// vid restart tries
+		utils::hook::set<BYTE>(0x6EB28F, 0xEB);
+		utils::hook::nop(0x6B7E01, 2); // do not sleep in R_CheckResizeWindow
+		utils::hook::nop(0x6EBF14, 5); // do not call 'RB_SwapBuffers' in RB_RenderThread
+
+		// do not call 'R_ResizeWindow' in RB_SwapBuffers
+		utils::hook::set<BYTE>(0x6EB24C, 0xEB);
+		utils::hook::nop(0x6EB20D, 2);
+
+		utils::hook(0x5B52B8, vid_restart_stub, HOOK_CALL).install()->quick(); // vid_restart
+		utils::hook(0x5B52DA, vid_restart_post_stub, HOOK_CALL).install()->quick(); // vid_restart
+
+		utils::hook(0x5D2F2C, vid_restart_stub, HOOK_CALL).install()->quick(); // vid_restart_complete
+		utils::hook(0x5D2F4B, vid_restart_post_stub, HOOK_CALL).install()->quick(); // vid_restart_complete
+
+		utils::hook::nop(0x6D589A, 6);
+		utils::hook(0x6D589A, r_issuerendercmds_stub, HOOK_JUMP).install()->quick(); // R_IssueRenderCommands
+#endif
+
 
 		// RB_RenderThread :: stub placed onto 'Sys_StopRenderer'
 		utils::hook(0x6EBE84, rb_renderthread_stub, HOOK_CALL).install()->quick();
@@ -1153,20 +1332,7 @@ namespace components::sp
 		utils::hook::nop(0x6B6905, 5); utils::hook::nop(0x6B6910, 6);
 		utils::hook(0x6B6910, fix_aspect_ratio_stub, HOOK_JUMP).install()->quick();
 
-		// vid restart tries
-		utils::hook::set<BYTE>(0x6EB28F, 0xEB);
-		utils::hook::nop(0x6B7E01, 2); // do not sleep in R_CheckResizeWindow
-		utils::hook::nop(0x6EBF14, 5); // do not call 'RB_SwapBuffers' in RB_RenderThread
-
-		//utils::hook::set<BYTE>(0x481F85, 0xEB);
-
-		utils::hook(0x5B52B8, vid_restart_stub, HOOK_CALL).install()->quick(); // vid_restart
-		utils::hook(0x5B52DA, vid_restart_post_stub, HOOK_CALL).install()->quick(); // vid_restart
-
-		utils::hook(0x5D2F2C, vid_restart_stub, HOOK_CALL).install()->quick(); // vid_restart_complete
-		utils::hook(0x5D2F4B, vid_restart_post_stub, HOOK_CALL).install()->quick(); // vid_restart_complete
-		// call 0x883020 CL_SetupViewport after resize but copy vidConfig to cls before
-		// vidConfig_t @ 0x3966148
+		
 
 		// ------------------------------------------------------------------------
 

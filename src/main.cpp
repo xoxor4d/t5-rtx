@@ -1,39 +1,5 @@
 #include "std_include.hpp"
 
-// rename window title to get rid of the trademark (R) which currently causes issues with the remix toolkit
-DWORD WINAPI find_window_loop(LPVOID)
-{
-	const char* hwnd_title = "Call of Duty\xAE: BlackOps";
-	std::uint32_t _time = 0;
-
-	// wait for window creation
-	while (!game::main_window)
-	{
-		// get main window hwnd
-		game::main_window = FindWindowExA(nullptr, nullptr, "CoDBlackOps", hwnd_title);
-
-		Sleep(1000); _time += 500;
-		if (_time >= 30000)
-		{
-			return TRUE;
-		}
-	}
-
-	static auto version_str = std::string("t5-rtx");
-#ifdef GIT_DESCRIBE
-	version_str += "-"s + GIT_DESCRIBE;
-	version_str += game::is_game_mod ? " + game_mod" : "";
-
-	SetWindowTextA(game::main_window, version_str.c_str());
-
-#else
-	version_str += game::is_game_mod ? " + game_mod" : "";
-	SetWindowTextA(game::main_window, version_str.c_str());
-#endif
-
-	return TRUE;
-}
-
 // https://github.com/Nukem9/LinkerMod/blob/72ee05bbf42dfb2a1893e655788b631be63ea317/components/game_mod/dllmain.cpp#L9
 bool check_for_german_binary()
 {
@@ -95,8 +61,6 @@ BOOL APIENTRY DllMain(HMODULE /*hModule*/, DWORD  ul_reason_for_call, LPVOID /*l
 			ASSERT(!check_for_german_binary(), "German version is not supported %s", "!");
 		}
 
-		CreateThread(nullptr, 0, find_window_loop, nullptr, 0, nullptr);
-		//game::init_offsets();
 		components::loader::initialize();
 	}
 	else if (ul_reason_for_call == DLL_PROCESS_DETACH)
