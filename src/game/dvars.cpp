@@ -7,6 +7,9 @@ namespace dvars
 	game::dvar_s* rtx_disable_entity_culling = nullptr;
 	game::dvar_s* rtx_sky_follow_player = nullptr;
 
+	game::dvar_s* r_showTess = nullptr;
+	game::dvar_s* r_showTessDist = nullptr;
+
 	void bool_override(const char* dvarName, const bool& value, const game::dvar_flags& flags)
 	{
 		if (const auto& dvar = game::sp::Dvar_FindVar(dvarName); dvar)

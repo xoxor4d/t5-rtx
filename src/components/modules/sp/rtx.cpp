@@ -86,6 +86,20 @@ namespace components::sp
 		dvars::bool_override("r_depthPrepass", false);
 		dvars::bool_override("r_dof_enable", false);
 		dvars::bool_override("r_distortion", false);
+
+		if (dvars::r_showTess && dvars::r_showTess->current.enabled)
+		{
+			if (static bool enable_developer_once = false; !enable_developer_once)
+			{
+				if (const auto var = game::sp::Dvar_FindVar("developer");
+					var && !var->current.enabled)
+				{
+					dvars::int_override("developer", 1);
+				}
+
+				enable_developer_once = true;
+			}
+		}
 	}
 
 	void rtx::set_dvar_defaults()
@@ -101,6 +115,23 @@ namespace components::sp
 			"- all: disable culling of all surfaces including models\n"
 			"- all-but-models: disable culling of all surfaces excluding models");
 #endif
+
+		static const char* r_showTess_enum[] = { "off", "tech", "techset", "material", "vertexshader", "pixelshader" };
+		dvars::r_showTess = game::sp::Dvar_RegisterEnum(
+			/* name		*/ "r_showTess",
+			/* enumData */ r_showTess_enum,
+			/* default	*/ 0,
+			/* flags	*/ game::dvar_flags::none,
+			/* desc		*/ "surface data");
+
+		// const char* name, float value, float min, float max, dvar_flags flags, const char* desc
+		dvars::r_showTessDist = game::sp::Dvar_RegisterFloat(
+			/* name		*/ "r_showTessDist",
+			/* default	*/ 1000.0f,
+			/* min		*/ 0.0f,
+			/* max		*/ 10000.0f,
+			/* flags	*/ game::dvar_flags::none,
+			/* desc		*/ "radius in which to draw r_showTess debug strings");
 
 		if (!flags::has_flag("no_forced_lod"))
 		{

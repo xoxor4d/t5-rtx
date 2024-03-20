@@ -1255,6 +1255,87 @@ namespace game
 		//DynSModelGfxState* dynSModelState;
 	};
 
+	struct GfxDebugPoly
+	{
+		float faceColor[4];
+		bool faceDepthTest;
+		float edgeColor[4];
+		bool edgeDepthTest;
+		int firstVert;
+		int vertCount;
+	};
+
+	struct PolySet
+	{
+		float(*verts)[3];
+		int vertCount;
+		int vertLimit;
+		GfxDebugPoly* polys;
+		int polyCount;
+		int polyLimit;
+	};
+
+	struct trDebugString_t
+	{
+		float xyz[3];
+		float color[4];
+		float scale;
+		char text[96];
+	};
+
+	struct trDebugLine_t
+	{
+		float start[3];
+		float end[3];
+		float color[4];
+		int depthTest;
+	};
+
+	struct GfxDebugPlume
+	{
+		float origin[3];
+		float color[4];
+		int score;
+		int startTime;
+		int duration;
+	};
+
+	struct trDebugSphere_t
+	{
+		float center[3];
+		float radius;
+		int sideCount;
+		float color[4];
+		int depthTest;
+	};
+
+	struct DebugGlobals
+	{
+		PolySet polySet;
+		trDebugString_t* strings;
+		int stringCount;
+		int stringLimit;
+		trDebugString_t* externStrings;
+		int externStringCount;
+		int externMaxStringCount;
+		trDebugLine_t* lines;
+		int lineCount;
+		int lineLimit;
+		trDebugLine_t* externLines;
+		int externLineCount;
+		int externMaxLineCount;
+		GfxDebugPlume* plumes;
+		int plumeCount;
+		int plumeLimit;
+		trDebugSphere_t* spheres;
+		int sphereCount;
+		int sphereLimit;
+		trDebugSphere_t* externSpheres;
+		int externSphereCount;
+		int externMaxSphereCount;
+	}; STATIC_ASSERT_SIZE(DebugGlobals, 0x6C);
+
+
 	const struct __declspec(align(32)) GfxBackEndData
 	{
 		char surfsBuffer[262144];
@@ -1302,7 +1383,7 @@ namespace game
 		unsigned int viewInfoIndex;
 		unsigned int viewInfoCount;
 		GfxViewInfo* viewInfo;
-		/*GfxUI3DBackend rbUI3D;
+		GfxUI3DBackend rbUI3D;
 		const void* cmds;
 		const void* compositingCmds;
 		GfxLight sunLight;
@@ -1320,7 +1401,7 @@ namespace game
 		GfxDrawSurf* emissiveSpotDrawSurfs;
 		unsigned int emissiveSpotLightCount;
 		bool extraCamLargeFrameSize;
-		GfxSunShadow sunShadow;
+		/*GfxSunShadow sunShadow;
 		unsigned int spotShadowCount;
 		GfxSpotShadow spotShadows[4];
 		DynSModelGfxState dynSModelState;
@@ -2380,6 +2461,7 @@ namespace game
 
 	enum dvar_flags : int
 	{
+		none = 0,
 		archive = 1 << 0,			// 0x0001
 		userinfo = 1 << 1,			// 0x0002
 		serverinfo = 1 << 2,		// 0x0004

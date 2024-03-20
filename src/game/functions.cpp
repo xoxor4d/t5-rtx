@@ -148,6 +148,23 @@ namespace game
 				add		esp, 8;
 			}
 		}
+
+		void R_AddDebugString(DebugGlobals* debug_globals_entry /*edi*/, const float* origin, const float* color, float scale, const char* string)
+		{
+			const static uint32_t func_addr = 0x6FCC50;
+			__asm
+			{
+				pushad;
+				push	string;
+				push	scale;
+				push	color;
+				push	origin;
+				mov		edi, debug_globals_entry;
+				call	func_addr;
+				add		esp, 16;
+				popad;
+			}
+		}
 	} // sp-end
 
 	// ------------------------------------------------------------------------------------------------------------

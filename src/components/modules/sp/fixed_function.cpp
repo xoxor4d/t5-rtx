@@ -222,8 +222,93 @@ namespace components::sp
 			// get indexbuffer offset
 			const auto offset = 0;
 
-			// draw the prim
-			cmd->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, drawstream->localSurf->vertCount, offset, drawstream->localSurf->triCount);
+			if (dvars::r_showTess && dvars::r_showTess->current.enabled)
+			{
+				main_module::RB_ShowTess(src, cmd, &mtx[3][0], "Static", game::COLOR_WHITE);
+			}
+
+			if (cmd->material &&
+				cmd->material->u_techset.techniqueSet &&
+				cmd->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(cmd->techType)] &&
+				cmd->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(cmd->techType)]->name)
+			{
+				if (cmd->material->textureCount > 3 
+					&& utils::starts_with(cmd->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(cmd->techType)]->name, "pi")
+					&& utils::starts_with(cmd->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(cmd->techType)]->name, "pimp_technique_radiant"))
+				{
+					struct pimp_tech_s
+					{
+						game::GfxImage* img = nullptr;
+						game::GfxImage* alpha_img = nullptr;
+					};
+
+					pimp_tech_s multipass_texture_maps = {};
+					
+					for (auto i = cmd->material->textureCount - 1; i > 0; i--)
+					{
+						if (const auto m = &cmd->material->textureTable[i];
+							m && m->semantic == 2 && m->u.image && m->u.image->texture.basemap)
+						{
+							const char last_char = std::string_view(m->u.image->name).back();
+							if (last_char == 'c')
+							{
+								if (utils::string_contains(m->u.image->name, "alpha"))
+								{
+									multipass_texture_maps.alpha_img = m->u.image;
+
+									// only break if both textures are found
+									if (multipass_texture_maps.img && multipass_texture_maps.alpha_img)
+									{
+										break;
+									}
+								}
+
+								multipass_texture_maps.img = m->u.image;
+
+								// in case we get the alpha layer before the base layer
+								if (multipass_texture_maps.img && multipass_texture_maps.alpha_img)
+								{
+									break;
+								}
+							}
+						}
+					}
+
+					if (multipass_texture_maps.img)
+					{
+						// draw base layer 
+						game::sp::dx->device->SetTexture(0, multipass_texture_maps.img->texture.basemap);
+						dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, drawstream->localSurf->vertCount, offset, drawstream->localSurf->triCount);
+
+						// if alpha - doesnt work rn
+						//if (multipass_texture_maps.alpha_img)
+						//{
+						//	// enable blending
+						//	dev->SetRenderState(D3DRS_ALPHABLENDENABLE, 1);
+
+						//	// set alpha as base color
+						//	game::sp::dx->device->SetTexture(0, multipass_texture_maps.alpha_img->texture.basemap);
+
+						//	// set alpha as second stage alpha
+						//	dev->SetTexture(1, multipass_texture_maps.alpha_img->texture.basemap);
+						//	dev->SetTextureStageState(1, D3DTSS_ALPHAARG1, D3DTA_CURRENT);
+						//	dev->SetTextureStageState(1, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
+						//	dev->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+
+						//	// draw alpha adjusted second layer
+						//	dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, drawstream->localSurf->vertCount, offset, drawstream->localSurf->triCount);
+
+						//	// disable blending
+						//	dev->SetRenderState(D3DRS_ALPHABLENDENABLE, 0);
+						//}
+					}
+				}
+				else // if not pimp tech
+				{
+					// draw the prim
+					dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, drawstream->localSurf->vertCount, offset, drawstream->localSurf->triCount);
+				}
+			}
 		}
 
 		dev->SetFVF(NULL);
@@ -442,6 +527,11 @@ namespace components::sp
 			}
 		}
 
+		if (dvars::r_showTess && dvars::r_showTess->current.enabled)
+		{
+			main_module::RB_ShowTess(source, state, &mtx[3][0], "XMRigid", game::COLOR_WHITE);
+		}
+
 		const auto offset = 0;
 		state->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, offset, surf->triCount);
 		dev->SetFVF(NULL);
@@ -624,6 +714,11 @@ namespace components::sp
 		mtx[3][2] = is_skinned_vert ? src->skinnedPlacement.base.origin[2] : skinned_surf->placement.base.origin[2]; //src->objectPlacement->base.origin[2];
 		mtx[3][3] = 1.0f;
 
+		if (dvars::r_showTess && dvars::r_showTess->current.enabled)
+		{
+			main_module::RB_ShowTess(src, state, &mtx[3][0], "XMSkin", game::COLOR_WHITE);
+		}
+
 		// set world matrix
 		state->prim.device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
 		state->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, start_index, surf->triCount);
@@ -776,6 +871,11 @@ namespace components::sp
 				mtx[3][1] = inst->placement.origin[1];
 				mtx[3][2] = inst->placement.origin[2];
 				mtx[3][3] = 1.0f;
+
+				if (dvars::r_showTess && dvars::r_showTess->current.enabled)
+				{
+					main_module::RB_ShowTess(src, state, &mtx[3][0], "StaticSkin", game::COLOR_WHITE);
+				}
 
 				// set world matrix
 				state->prim.device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));

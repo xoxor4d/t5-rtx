@@ -170,9 +170,102 @@ namespace components::sp
 		*(DWORD*)0x2910160 ^= 1;
 	}
 
-	
+	void main_module::RB_ShowTess(game::GfxCmdBufSourceState* source, game::GfxCmdBufState* state, const float* center, const char* name, const float* color)
+	{
+		float offset_center[3];
+		offset_center[0] = center[0];
+		offset_center[1] = center[1];
+		offset_center[2] = center[2];
 
-	
+		const auto dist_to_str = utils::distance(source->eyeOffset, offset_center);
+
+		if (dvars::r_showTessDist)
+		{
+			if (dist_to_str > dvars::r_showTessDist->current.value && dvars::r_showTessDist->current.value != 0.0f)
+			{
+				return;
+			}
+		}
+
+		bool viewmodel_string = false;
+		auto font_scale = 0.25f;
+		if (dist_to_str < 25.0f)
+		{
+			viewmodel_string = true;
+			font_scale = 0.025f;
+		}
+
+		const game::MaterialTechnique* tech = nullptr;
+		if (state->material && state->material->u_techset.localTechniqueSet->techniques[static_cast<std::uint8_t>(state->techType)])
+		{
+			tech = state->material->u_techset.localTechniqueSet->techniques[static_cast<std::uint8_t>(state->techType)];
+		}
+
+		const char* info_string;
+		//const char* info_id_string;
+
+		const auto r_showTess = game::sp::Dvar_FindVar("r_showTess");
+		if (tech && r_showTess)
+		{
+			switch (r_showTess->current.integer)
+			{
+			case 1:
+				info_string = tech->name;
+				offset_center[2] = (((float)state->techType - 16.0f) * 0.3f) + offset_center[2];
+				//info_id_string = "T";
+				break;
+			case 4:
+				if (tech->passArray[0].vertexShader)
+					info_string = tech->passArray[0].vertexShader->name;
+				else
+					info_string = "<NONE>";
+				offset_center[2] = (((float)state->techType - 16.0f) * 0.3f) + offset_center[2];
+				//info_id_string = "VS";
+				break;
+			case 5:
+				if (tech->passArray[0].u_pixelshader.pixelShader)
+					info_string = tech->passArray[0].u_pixelshader.pixelShader->name;
+				else
+					info_string = "<NONE>";
+				offset_center[2] = (((float)state->techType - 16.0f) * 0.3f) + offset_center[2];
+				//info_id_string = "PS";
+				break;
+			case 2:
+				info_string = state->material->u_techset.localTechniqueSet->name;
+				//info_id_string = "TS";
+				break;
+			case 3:
+				info_string = state->material->info.name;
+				//info_id_string = "M";
+				break;
+			default:
+				info_string = "?";
+				//info_id_string = "?";
+				break;
+			} 
+
+			//const char* str = utils::va("%s:%s=%s", name, info_id_string, info_string); 
+			//R_AddDebugString(&source->u.input.data->debugGlobals, offset_center, color, font_scale, str);
+
+			R_AddDebugString(&source->u.input.data->debugGlobals, offset_center, color, font_scale, utils::va("%s: %s", name, info_string));
+
+			if (r_showTess->current.integer == 3)
+			{
+				font_scale *= 0.5f;
+				for (auto i = 0; i < state->material->textureCount; i++)
+				{
+					if (&state->material->textureTable[i] && state->material->textureTable[i].u.image && state->material->textureTable[i].u.image->name)
+					{
+						const auto img = state->material->textureTable[i].u.image;
+
+						offset_center[2] -= viewmodel_string ? 0.25f : 2.5f;
+						R_AddDebugString(&source->u.input.data->debugGlobals, offset_center, color, font_scale, utils::va("> [%d] %s", static_cast<std::uint8_t>(img->semantic), img->name));
+					}
+				}
+			}
+		}
+	}
+
 
 	// TODO:
 	// - call R_SkinXModelCmd (0x745280) directly - cmd placed @ 0x6CA0F2
@@ -820,6 +913,20 @@ namespace components::sp
 		mat.technique_type = type;
 
 
+		//if (utils::starts_with(mat.current_material->info.name, "mc/mtl_p_zom_iceberg"))
+		//{
+		//	// semantic 2
+		//	for (auto i = 0; i < mat.current_material->textureCount; i++)
+		//	{
+		//		if (const auto m = &mat.current_material->textureTable[i];
+		//			m && m->semantic == 2 && m->u.image && m->u.image->texture.basemap)
+		//		{
+		//			game::sp::dx->device->SetTexture(0, m->u.image->texture.basemap);
+		//			break;
+		//		}
+		//	}
+		//}
+
 		//if (utils::starts_with(mat.current_material->info.name, "wc/sky_"))
 		//{
 		//	mat.technique_type = game::TECHNIQUE_UNLIT;
@@ -1336,6 +1443,8 @@ namespace components::sp
 		utils::hook::nop(0x6B6905, 5); utils::hook::nop(0x6B6910, 6);
 		utils::hook(0x6B6910, fix_aspect_ratio_stub, HOOK_JUMP).install()->quick();
 
+		// :* x2
+		utils::hook::set(0x41EEC0, (PBYTE)"\xB8\x01\x00\x00\x00\xC3", 6);
 		
 
 		// ------------------------------------------------------------------------

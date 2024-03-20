@@ -50,6 +50,7 @@ namespace game
 		static utils::function<dvar_s* __cdecl (const char* name)> Dvar_FindVar = 0x5AE810;
 		static utils::function<dvar_s* __cdecl (const char* name, const char** data, int value, dvar_flags flags, const char* desc)> Dvar_RegisterEnum = 0x51BD00;
 		static utils::function<dvar_s* __cdecl (const char* name, bool value, dvar_flags flags, const char* desc)> Dvar_RegisterBool = 0x45BB20;
+		static utils::function<dvar_s* __cdecl (const char* name, float value, float min, float max, dvar_flags flags, const char* desc)> Dvar_RegisterFloat = 0x679020;
 
 		// 61BE00
 		static utils::function<Material* __cdecl (const char* name)> Material_RegisterHandle = 0x6D4080;
@@ -99,6 +100,7 @@ namespace game
 		static utils::function<void(GfxCmdBufSourceState* source, GfxCmdBufState* state, std::uint8_t rt_index)> R_SetRenderTarget = 0x726650;
 
 		void R_AddCellSurfacesAndCullGroupsInFrustumDelayed(GfxCell* cell /*eax*/, DpvsPlane* planes /*edi*/, int planeCount, int frustumPlaneCount); // asm
+		void R_AddDebugString(DebugGlobals* debug_globals_entry /*edi*/, const float* origin, const float* color, float scale, const char* string); // asm
 	}
 
 	// ------------------------------------------------------------------------------------------------------------

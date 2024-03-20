@@ -14,6 +14,7 @@ namespace components::sp
 		static void on_map_load();
 		static void on_map_shutdown();
 
+		static void RB_ShowTess(game::GfxCmdBufSourceState* source, game::GfxCmdBufState* state, const float* center, const char* name, const float* color);
 		static void setup_sky_image(game::GfxImage* skyimg);
 		static inline IDirect3DTexture9* m_sky_texture = nullptr;
 
