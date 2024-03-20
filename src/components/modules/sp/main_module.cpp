@@ -1213,6 +1213,28 @@ namespace components::sp
 		utils::hook::call<void(__cdecl)(game::XZoneInfo*, std::uint32_t, int)>(0x631B10)(info, i, 0);
 	}
 
+	void load_level_fastfile_hk(const char* map_name)
+	{
+		// Com_LoadLevelFastFiles - would normally call 'Com_LoadCommonFastFile' ^ hooked and loads xcommon_rtx
+		// Com_LoadLevelFastFiles is entirely detoured in game_mod so we have to load out fastfile afterwards
+		utils::hook::call<void(__cdecl)(const char*)>(0x4C8890)(map_name);
+
+		if (game::is_game_mod)
+		{
+			if (!utils::hook::call<bool(__cdecl)(const char*)>(0x528A20)("xcommon_rtx") // DB_IsZoneLoaded
+				&& game::sp::DB_FileExists("xcommon_rtx", game::DB_PATH_ZONE))
+			{
+				game::XZoneInfo info;
+				info.name = "xcommon_rtx";
+				info.allocFlags = 0x4000000; // patch_override flag
+				info.freeFlags = 0;
+
+				//DB_LoadXAssets(info, 1u, 0);
+				utils::hook::call<void(__cdecl)(game::XZoneInfo*, std::uint32_t, int)>(0x631B10)(&info, 1, 0);
+			}
+		}
+	}
+
 	
 
 
@@ -1387,9 +1409,11 @@ namespace components::sp
 			utils::hook(0x725BC4, r_setsampler_stub, HOOK_JUMP).install()->quick();
 		}
 
-		// load_common_fast_files
+		// load_common_fast_files - not called when using game_mod
 		utils::hook(0x4C8966, load_common_fast_files, HOOK_CALL).install()->quick();
-
+		utils::hook(0x50F41D, load_level_fastfile_hk, HOOK_CALL).install()->quick();
+		utils::hook(0x51B175, load_level_fastfile_hk, HOOK_CALL).install()->quick();
+		utils::hook(0x88A410, load_level_fastfile_hk, HOOK_CALL).install()->quick();
 
 		// #
 		// game_mod patches by nukem - https://github.com/Nukem9/LinkerMod/blob/development/components/game_mod/dllmain.cpp
