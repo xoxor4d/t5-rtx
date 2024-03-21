@@ -21,6 +21,12 @@ namespace components::sp
 	{
 		if (!game::is_game_mod)
 		{
+			// a few more ceg patches that game_mod does not need to handle because affected functions are detoured
+			utils::hook::nop(0x7D905F, 5); // PlayerCmd_SetPerk (second one in this func, first is already handled)
+			utils::hook::set(0x4DA5B0, (PBYTE)"\xB8\x01\x00\x00\x00\xC3", 6); // ceg func that gets called by multiple other funcs
+			utils::hook::nop(0x7D91CF, 5); // PlayerCmd_UnsetPerk
+			utils::hook::set(0x502190, (PBYTE)"\xB8\x01\x00\x00\x00\xC3", 6); // ceg func that gets called by multiple other funcs
+
 			utils::hook::set(0x662F20, (PBYTE)"\xB8\x01\x00\x00\x00\xC3", 6); // Kill Steam DRM IPC creation
 			utils::hook::set(0x662F20, (PBYTE)"\xB8\x01\x00\x00\x00\xC3", 6); // Kill Steam DRM IPC creation
 			utils::hook::set(0x46C9A0, (PBYTE)"\xCC", 1);

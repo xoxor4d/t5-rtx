@@ -410,11 +410,8 @@ namespace components::sp
 		// ^ - never show all cells at once when the camera cell index is < 0, we handle that in the func above
 		utils::hook::nop(0x6B5FB3, 2);
 
-
-
-		// TODO: the next 3 nops together crash the game (without error) after drinking a perk bottle
-		// ..... does NOT happen when game_mod is loaded (Streaming issue?)
-
+		// the next 3 nops together force crash the game after drinking a perk bottle because of CEG checks (now handled in the CEG module)
+		
 		// disable (most) frustum culling
 		utils::hook::nop(0x7217DC, 2);
 
@@ -423,8 +420,6 @@ namespace components::sp
 
 		// ^ for smodels - TODO - make dvar for this?
 		utils::hook::nop(0x72173F, 2);
-
-
 
 		// never cull brushmodels via dpvs
 		utils::hook::nop(0x74784D, 2);
