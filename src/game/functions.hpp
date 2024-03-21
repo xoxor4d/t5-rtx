@@ -54,7 +54,7 @@ namespace game
 
 		// 61BE00
 		static utils::function<Material* __cdecl (const char* name)> Material_RegisterHandle = 0x6D4080;
-		static utils::function<BOOL __cdecl (game::dvar_s*)> Dvar_HasLatchedValue = 0x6D4080;
+		static utils::function<BOOL __cdecl (game::dvar_s*)> Dvar_HasLatchedValue = 0x61BE00;
 		static utils::function<void __cdecl (game::dvar_s*)> Dvar_MakeLatchedCurrent = 0x61CFC0;
 
 		//static utils::function<void __fastcall (int, GfxCmdBufSourceState*)> R_Set3D = 0x7244C0;

@@ -124,7 +124,6 @@ namespace components::sp
 			/* flags	*/ game::dvar_flags::none,
 			/* desc		*/ "surface data");
 
-		// const char* name, float value, float min, float max, dvar_flags flags, const char* desc
 		dvars::r_showTessDist = game::sp::Dvar_RegisterFloat(
 			/* name		*/ "r_showTessDist",
 			/* default	*/ 1000.0f,
@@ -132,6 +131,14 @@ namespace components::sp
 			/* max		*/ 10000.0f,
 			/* flags	*/ game::dvar_flags::none,
 			/* desc		*/ "radius in which to draw r_showTess debug strings");
+
+		dvars::rtx_water_uv_scale = game::sp::Dvar_RegisterFloat(
+			/* name		*/ "rtx_water_uv_scale",
+			/* default	*/ 0.01f,
+			/* min		*/ 0.0001f,
+			/* max		*/ 2.0f,
+			/* flags	*/ game::dvar_flags::saved,
+			/* desc		*/ "UV scale of water");
 
 		if (!flags::has_flag("no_forced_lod"))
 		{

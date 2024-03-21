@@ -918,7 +918,7 @@ namespace components::sp
 		return true;
 	}
 
-	void R_DrawPreTessTris(game::GfxCmdBufSourceState* src [[maybe_unused]], game::GfxCmdBufPrimState* state, game::srfTriangles_t* tris, unsigned int baseIndex, unsigned int triCount)
+	void R_DrawPreTessTris(game::GfxCmdBufSourceState* src [[maybe_unused]], game::GfxCmdBufState* state, game::srfTriangles_t* tris, unsigned int baseIndex, unsigned int triCount)
 	{
 		const auto dev = dx->device;
 
@@ -935,8 +935,119 @@ namespace components::sp
 		dev->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
 		dev->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
 
+
+		// #
+		// take care of water surfaces
+
+		bool is_water = false;
+
+		if (   state 
+			&& state->material 
+			&& static_cast<std::uint8_t>(state->material->info.sortKey) == 16
+			&& state->material->u_techset.techniqueSet 
+			&& utils::string_contains(state->material->u_techset.techniqueSet->name, "cod7water"))
+		{
+			// get a handle to the default water texture 
+			if (const auto	material = Material_RegisterHandle("water_default");
+				   material 
+				&& material->textureTable 
+				&& material->textureTable->u.image 
+				&& material->textureTable->u.image->name
+				&& !std::string_view(material->textureTable->u.image->name)._Equal("default"))
+			{
+				is_water = true;
+
+				// set the texture (textureTable[1] : case texture)
+				dev->SetTexture(0, material->textureTable[0].u.image->texture.basemap);
+
+#if 0 // overly complicated
+
+				// #
+				// water surfaces have really tiny repeating uv's so lets try to increase the scale
+				// we keep track of already modified vertices so we do not indefinitely scale up the uv's
+
+				const auto buffer_offset = WORLD_VERTEX_STRIDE * tris->firstVertex;
+				const auto size_of_data = WORLD_VERTEX_STRIDE * triCount;
+
+				bool region_is_modified = false;
+				for (const auto& r : fixed_function::modified_vertices_list)
+				{
+					// check if new region is completely outside of other region
+					//if ((buffer_offset + size_of_data) <= r.base_offset || (r.base_offset + r.size) <= buffer_offset)
+
+					// check if region intersects
+					if ((buffer_offset + size_of_data) > r.base_offset || (r.base_offset + r.size) > buffer_offset)
+					{
+						region_is_modified = true;
+						break;
+					}
+
+					// would need to handle regions that overlap already modified regions but cba rn.
+				}
+
+				if (!region_is_modified)
+				{
+					void* buffer_data = nullptr;
+
+					// lock out buffer at the specified offset with the given size
+					if (const auto hr = gfx_world_vertexbuffer->Lock(buffer_offset, size_of_data, &buffer_data, 0);
+						hr >= 0)
+					{
+						float scale = 1.0f;
+						// for each vertex we locked ^
+						for (auto i = 0u; i < triCount * 3; i++)
+						{
+							// position of vert within the vertex buffer
+							const auto v_pos_in_buffer = i * WORLD_VERTEX_STRIDE;
+							const auto v = reinterpret_cast<unpacked_world_vert*>(((DWORD)buffer_data + v_pos_in_buffer));
+
+							v->texcoord[0] -= 1000; //0.01f;
+							v->texcoord[1] += 1000; //0.01f;
+						}
+						gfx_world_vertexbuffer->Unlock();
+
+						// save range
+						fixed_function::modified_vertices_list.emplace_back(buffer_offset, size_of_data);
+					}
+				}
+#endif
+			}
+		}
+
+		D3DMATRIX saved_trans = {};
+		DWORD saved_stage = NULL;
+
+		// scale water UV's
+		if (is_water)
+		{
+			float scale = 0.01f;
+			if (dvars::rtx_water_uv_scale)
+			{
+				scale = dvars::rtx_water_uv_scale->current.value;
+			}
+
+			float m[4][4] = {};
+			m[0][0] = scale;	m[0][1] = 0.0f;		m[0][2] = 0.0f;		m[0][3] = 0.0f;
+			m[1][0] = 0.0f;		m[1][1] = scale;	m[1][2] = 0.0f;		m[1][3] = 0.0f;
+			m[2][0] = 0.0f;		m[2][1] = 0.0f;		m[2][2] = 0.0f;		m[2][3] = 0.0f;
+			m[3][0] = 0.0f;		m[3][1] = 0.0f;		m[3][2] = 0.0f;		m[3][3] = 0.0f;
+
+			dev->GetTransform(D3DTS_TEXTURE0, &saved_trans);
+			dev->GetTextureStageState(0, D3DTSS_TEXTURETRANSFORMFLAGS, &saved_stage);
+
+			dev->SetTransform(D3DTS_TEXTURE0, reinterpret_cast<D3DMATRIX*>(&m[0]));
+			dev->SetTextureStageState(0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_COUNT2);
+		}
+		
 		dev->SetStreamSource(0, gfx_world_vertexbuffer, WORLD_VERTEX_STRIDE * tris->firstVertex, WORLD_VERTEX_STRIDE);
-		state->device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, tris->vertexCount, baseIndex, triCount);
+		dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, tris->vertexCount, baseIndex, triCount);
+
+
+		if (is_water)
+		{
+			dev->SetTransform(D3DTS_TEXTURE0, &saved_trans);
+			dev->SetTextureStageState(0, D3DTSS_TEXTURETRANSFORMFLAGS, saved_stage);
+		}
 	}
 
 	/**
@@ -985,7 +1096,7 @@ namespace components::sp
 					// never triggers?
 					if (tri_count)
 					{
-						R_DrawPreTessTris(src, &state->prim, prev_tris, base_index, tri_count);
+						R_DrawPreTessTris(src, state, prev_tris, base_index, tri_count);
 						base_index += 3 * tri_count;
 						tri_count = 0;
 					}
@@ -997,7 +1108,7 @@ namespace components::sp
 				tri_count += list[index].totalTriCount;
 			}
 
-			R_DrawPreTessTris(src, &state->prim, prev_tris, base_index, tri_count);
+			R_DrawPreTessTris(src, state, prev_tris, base_index, tri_count);
 		}
 
 		// #
@@ -1407,6 +1518,9 @@ namespace components::sp
 
 	void build_gfxworld_buffers()
 	{
+		// clear list that keeps track of the vertices that had were modified after building the gfxworld buffer
+		fixed_function::modified_vertices_list.clear();
+
 		const auto dev = dx->device;
 		void* vertex_buffer_data = nullptr;
 
@@ -1521,6 +1635,9 @@ namespace components::sp
 			gfx_world_vertexbuffer->Release();
 			gfx_world_vertexbuffer = nullptr;
 		}
+
+		// clear list that keeps track of the vertices that had were modified after building the gfxworld buffer
+		fixed_function::modified_vertices_list.clear();
 	}
 
 	// called on renderer shutdown (R_Shutdown)

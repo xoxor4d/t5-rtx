@@ -733,36 +733,6 @@ namespace components::sp
 		}
 	}
 
-	// *
-	// Event stubs
-
-	// > fixed_function::init_fixed_function_buffers_stub
-	void main_module::on_map_load()
-	{
-		map_settings::get()->set_settings_for_loaded_map();
-		rtx::set_dvar_defaults();
-
-		if (main_module::m_sky_texture)
-		{
-			main_module::m_sky_texture->Release();
-			main_module::m_sky_texture = nullptr;
-		}
-
-		fixed_function::fixed_function::last_valid_sky_texture = nullptr;
-	}
-
-	// > fixed_function::free_fixed_function_buffers_stub
-	void main_module::on_map_shutdown()
-	{
-		if (main_module::m_sky_texture)
-		{
-			main_module::m_sky_texture->Release();
-			main_module::m_sky_texture = nullptr;
-		}
-
-		fixed_function::fixed_function::last_valid_sky_texture = nullptr;
-	}
-
 	void ui_3d_render_to_texture(game::GfxViewInfo* view)
 	{
 		if (!view->isMissileCamera)
@@ -912,7 +882,6 @@ namespace components::sp
 		mat.technique = mat.current_technique;
 		mat.technique_type = type;
 
-
 		//if (utils::starts_with(mat.current_material->info.name, "mc/mtl_p_zom_iceberg"))
 		//{
 		//	// semantic 2
@@ -925,17 +894,6 @@ namespace components::sp
 		//			break;
 		//		}
 		//	}
-		//}
-
-		//if (utils::starts_with(mat.current_material->info.name, "wc/sky_"))
-		//{
-		//	mat.technique_type = game::TECHNIQUE_UNLIT;
-		//	const auto ui3d_tex = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_IDENTITY_NORMAL_MAP]->texture.basemap;
-		//	if (ui3d_tex)
-		//	{
-		//		game::sp::dx->device->SetTexture(0, ui3d_tex);
-		//	}
-		//	//switch_material(&mat, "mc/mtl_test_sphere_silver");
 		//}
 
 		if (state->material->info.sortKey == 5)
@@ -1016,6 +974,72 @@ namespace components::sp
 		state->techType = mat.technique_type;
 
 		return 1;
+	}
+
+	// not in use
+	void r_setup_pass(game::GfxCmdBufState* state)
+	{
+		for (auto i = 0; i < state->material->textureCount; i++)
+		{
+			if (state->material->textureTable[i].semantic == 11)
+			{
+				__debugbreak();
+			}
+		}
+	}
+
+	// not in use
+	__declspec(naked) void r_setup_pass_stub()
+	{
+		const static uint32_t retn_addr = 0x7279E5;
+		__asm
+		{
+			pushad;
+			mov     eax, [esp + 0xC - 4 + 32];
+			push	eax;
+			call	r_setup_pass;
+			add		esp, 4;
+			popad;
+
+			// og code
+			push    ecx;
+			mov     eax, [esp + 0xC];
+			jmp		retn_addr;
+		}
+	}
+
+	// render water surfaces
+	void r_drawlit_post_resolve(game::GfxViewInfo* view)
+	{
+		const static uint32_t r_drawlit_addr = 0x737ED0;
+		__asm
+		{
+			pushad;
+			mov		esi, view;
+			push	1;
+			call	r_drawlit_addr;
+			add		 esp, 4;
+			popad;
+		}
+	}
+
+	// call R_DrawLit with litphase POST_RESOLVE to render water surfaces
+	// called inbetween 'R_DrawFullbrightLitCallback' and 'R_DrawFullbrightDecalCallback'
+	__declspec(naked) void impl_r_drawlit_post_stub()
+	{
+		const static uint32_t retn_addr = 0x6D042A;
+		__asm
+		{
+			pushad;
+			push	edi;
+			call	r_drawlit_post_resolve;
+			add		esp, 4;
+			popad;
+
+			// og code
+			lea     edx, [edi + 0x2320];
+			jmp		retn_addr;
+		}
 	}
 
 
@@ -1235,8 +1259,35 @@ namespace components::sp
 		}
 	}
 
-	
+	// *
+	// Event stubs
 
+	// > fixed_function::init_fixed_function_buffers_stub
+	void main_module::on_map_load()
+	{
+		map_settings::get()->set_settings_for_loaded_map();
+		rtx::set_dvar_defaults();
+
+		if (main_module::m_sky_texture)
+		{
+			main_module::m_sky_texture->Release();
+			main_module::m_sky_texture = nullptr;
+		}
+
+		//fixed_function::fixed_function::last_valid_sky_texture = nullptr;
+	}
+
+	// > fixed_function::free_fixed_function_buffers_stub
+	void main_module::on_map_shutdown()
+	{
+		if (main_module::m_sky_texture)
+		{
+			main_module::m_sky_texture->Release();
+			main_module::m_sky_texture = nullptr;
+		}
+
+		//fixed_function::fixed_function::last_valid_sky_texture = nullptr;
+	}
 
 	main_module::main_module()
 	{
@@ -1253,6 +1304,14 @@ namespace components::sp
 
 		// hook R_SetMaterial - material/technique replacing
 		utils::hook(0x73F8C0, r_set_material, HOOK_JUMP).install()->quick();
+
+		// only for testing
+		//utils::hook(0x7279E0, r_setup_pass_stub, HOOK_JUMP).install()->quick();
+		//utils::hook::nop(0x6C7164, 6); // test: add lit surfs
+
+		// call R_DrawLit with litphase POST_RESOLVE to render water surfaces when in fullbright mode
+		utils::hook::nop(0x6D0424, 6);
+		utils::hook(0x6D0424, impl_r_drawlit_post_stub, HOOK_JUMP).install()->quick();
 
 
 		// most of the following was done to make the game work with 'r_smp_backend' being disabled

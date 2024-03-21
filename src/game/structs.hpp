@@ -449,6 +449,34 @@ namespace game
 		unsigned int hash;
 	};
 
+	struct complex_s
+	{
+		float real;
+		float imag;
+	};
+
+	struct WaterWritable
+	{
+		float floatTime;
+	};
+
+	struct water_t
+	{
+		WaterWritable writable;
+		complex_s* H0;
+		float* wTerm;
+		int M;
+		int N;
+		float Lx;
+		float Lz;
+		float gravity;
+		float windvel;
+		float winddir[2];
+		float amplitude;
+		float codeConstant[4];
+		GfxImage* image;
+	};
+
 	struct __declspec(align(8)) MaterialInfo
 	{
 		const char* name;
