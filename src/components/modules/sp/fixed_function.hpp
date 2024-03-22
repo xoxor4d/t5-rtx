@@ -19,6 +19,8 @@ namespace components::sp
 
 		static inline std::vector<vb_vert_range_s> modified_vertices_list;
 
+		static bool render_sw4_dual_blend(const game::GfxCmdBufState* state, const game::XSurface* surf, std::uint32_t vertex_offset);
+
 	private:
 	};
 }

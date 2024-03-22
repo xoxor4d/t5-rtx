@@ -140,7 +140,7 @@ namespace components::sp
 	/**
 	 * @brief completely rewritten R_DrawStaticModelDrawSurfNonOptimized to render static models using the fixed-function pipeline
 	 */
-	void R_DrawStaticModelDrawSurfNonOptimized(const game::GfxStaticModelDrawStream* drawstream, [[maybe_unused]] game::GfxCmdBufSourceState* src, game::GfxCmdBufState* cmd)
+	void R_DrawStaticModelDrawSurfNonOptimized(const game::GfxStaticModelDrawStream* drawstream, [[maybe_unused]] game::GfxCmdBufSourceState* src, game::GfxCmdBufState* state)
 	{
 		const auto smodel_count = drawstream->smodelCount;
 		const auto smodel_list = (const game::GfxStaticModelDrawStream*) reinterpret_cast<const void*>(drawstream->smodelList);
@@ -159,18 +159,18 @@ namespace components::sp
 		// set streams
 
 		// index buffer
-		if (cmd->prim.indexBuffer != drawstream->localSurf->indexBuffer)
+		if (state->prim.indexBuffer != drawstream->localSurf->indexBuffer)
 		{
-			cmd->prim.indexBuffer = drawstream->localSurf->indexBuffer;
+			state->prim.indexBuffer = drawstream->localSurf->indexBuffer;
 			dev->SetIndices(drawstream->localSurf->indexBuffer);
 		}
 
 		// custom vertexbuffer
 		if (drawstream->localSurf->vb0)
 		{
-			cmd->prim.streams[0].vb = drawstream->localSurf->vb0;
-			cmd->prim.streams[0].offset = 0;
-			cmd->prim.streams[0].stride = MODEL_VERTEX_STRIDE;
+			state->prim.streams[0].vb = drawstream->localSurf->vb0;
+			state->prim.streams[0].offset = 0;
+			state->prim.streams[0].stride = MODEL_VERTEX_STRIDE;
 			dev->SetStreamSource(0, drawstream->localSurf->vb0, 0, MODEL_VERTEX_STRIDE);
 		}
 		else // fallback to shader rendering if there is no custom vertexbuffer
@@ -191,9 +191,6 @@ namespace components::sp
 		for (auto index = 0u; index < smodel_count; index++)
 		{
 			const auto inst = &draw_inst[*((std::uint16_t*)&smodel_list->primDrawSurfPos + index)];
-
-			// transform model into the scene by updating the worldmatrix
-			//R_DrawStaticModelDrawSurfPlacement(src, inst);
 
 			float mtx[4][4] = {};
 			const auto scale = inst->placement.scale;
@@ -219,95 +216,15 @@ namespace components::sp
 
 			dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
 
-			// get indexbuffer offset
-			const auto offset = 0;
-
 			if (dvars::r_showTess && dvars::r_showTess->current.enabled)
 			{
-				main_module::RB_ShowTess(src, cmd, &mtx[3][0], "Static", game::COLOR_WHITE);
+				main_module::RB_ShowTess(src, state, &mtx[3][0], "Static", game::COLOR_WHITE);
 			}
 
-			if (cmd->material &&
-				cmd->material->u_techset.techniqueSet &&
-				cmd->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(cmd->techType)] &&
-				cmd->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(cmd->techType)]->name)
+			const auto offset = 0;
+			if (!fixed_function::render_sw4_dual_blend(state, drawstream->localSurf, offset))
 			{
-				if (cmd->material->textureCount > 3 
-					&& utils::starts_with(cmd->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(cmd->techType)]->name, "pi")
-					&& utils::starts_with(cmd->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(cmd->techType)]->name, "pimp_technique_radiant"))
-				{
-					struct pimp_tech_s
-					{
-						game::GfxImage* img = nullptr;
-						game::GfxImage* alpha_img = nullptr;
-					};
-
-					pimp_tech_s multipass_texture_maps = {};
-					
-					for (auto i = cmd->material->textureCount - 1; i > 0; i--)
-					{
-						if (const auto m = &cmd->material->textureTable[i];
-							m && m->semantic == 2 && m->u.image && m->u.image->texture.basemap)
-						{
-							const char last_char = std::string_view(m->u.image->name).back();
-							if (last_char == 'c')
-							{
-								if (utils::string_contains(m->u.image->name, "alpha"))
-								{
-									multipass_texture_maps.alpha_img = m->u.image;
-
-									// only break if both textures are found
-									if (multipass_texture_maps.img && multipass_texture_maps.alpha_img)
-									{
-										break;
-									}
-								}
-
-								multipass_texture_maps.img = m->u.image;
-
-								// in case we get the alpha layer before the base layer
-								if (multipass_texture_maps.img && multipass_texture_maps.alpha_img)
-								{
-									break;
-								}
-							}
-						}
-					}
-
-					if (multipass_texture_maps.img)
-					{
-						// draw base layer 
-						game::sp::dx->device->SetTexture(0, multipass_texture_maps.img->texture.basemap);
-						dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, drawstream->localSurf->vertCount, offset, drawstream->localSurf->triCount);
-
-						// if alpha - doesnt work rn
-						//if (multipass_texture_maps.alpha_img)
-						//{
-						//	// enable blending
-						//	dev->SetRenderState(D3DRS_ALPHABLENDENABLE, 1);
-
-						//	// set alpha as base color
-						//	game::sp::dx->device->SetTexture(0, multipass_texture_maps.alpha_img->texture.basemap);
-
-						//	// set alpha as second stage alpha
-						//	dev->SetTexture(1, multipass_texture_maps.alpha_img->texture.basemap);
-						//	dev->SetTextureStageState(1, D3DTSS_ALPHAARG1, D3DTA_CURRENT);
-						//	dev->SetTextureStageState(1, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
-						//	dev->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
-
-						//	// draw alpha adjusted second layer
-						//	dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, drawstream->localSurf->vertCount, offset, drawstream->localSurf->triCount);
-
-						//	// disable blending
-						//	dev->SetRenderState(D3DRS_ALPHABLENDENABLE, 0);
-						//}
-					}
-				}
-				else // if not pimp tech
-				{
-					// draw the prim
-					dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, drawstream->localSurf->vertCount, offset, drawstream->localSurf->triCount);
-				}
+				dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, drawstream->localSurf->vertCount, offset, drawstream->localSurf->triCount);
 			}
 		}
 
@@ -533,7 +450,11 @@ namespace components::sp
 		}
 
 		const auto offset = 0;
-		state->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, offset, surf->triCount);
+		if (!fixed_function::render_sw4_dual_blend(state, surf, offset))
+		{
+			state->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, offset, surf->triCount);
+		}
+
 		dev->SetFVF(NULL);
 
 #ifdef CHANGE_CINE_COLOR
@@ -549,6 +470,93 @@ namespace components::sp
 			game::sp::dx->device->SetRenderState(D3DRS_TEXTUREFACTOR, saved_texfactor);
 		}
 #endif
+	}
+
+	// Fixes boats, ice bergs on eg. zombie_coast - anything using sw4 dual blend
+	// returns TRUE if surface was rendered
+	bool fixed_function::render_sw4_dual_blend(const game::GfxCmdBufState* state, const game::XSurface* surf, std::uint32_t vertex_offset)
+	{
+		const auto dev = game::sp::dx->device;
+
+		if (   state->material
+			&& state->material->textureCount > 3
+			&& state->material->u_techset.techniqueSet 
+			&& state->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(state->techType)] 
+			&& state->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(state->techType)]->name
+			&& std::string_view(state->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(state->techType)]->name).starts_with("pimp_technique_ra")) // pimp_technique_radiant
+		{
+			struct pimp_tech_s
+			{
+				game::GfxImage* img = nullptr;
+				game::GfxImage* alpha_img = nullptr;
+			};
+
+			pimp_tech_s multipass_texture_maps = {};
+
+			for (auto i = state->material->textureCount - 1; i > 0; i--)
+			{
+				if (const auto m = &state->material->textureTable[i];
+					m && m->semantic == 2 && m->u.image && m->u.image->texture.basemap)
+				{
+					if (std::string_view(m->u.image->name).back() == 'c')
+					{
+						if (std::string_view(m->u.image->name).contains("alpha"))
+						{
+							multipass_texture_maps.alpha_img = m->u.image;
+
+							// only break if both textures are found
+							if (multipass_texture_maps.img && multipass_texture_maps.alpha_img)
+							{
+								break;
+							}
+						}
+
+						multipass_texture_maps.img = m->u.image;
+
+						// in case we get the alpha layer before the base layer
+						if (multipass_texture_maps.img && multipass_texture_maps.alpha_img)
+						{
+							break;
+						}
+					}
+				}
+			}
+
+			if (multipass_texture_maps.img)
+			{
+				// draw base layer 
+				game::sp::dx->device->SetTexture(0, multipass_texture_maps.img->texture.basemap);
+				dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, vertex_offset, surf->triCount);
+			}
+
+			// TODO: draw blend layer with proper blending ..
+
+			// if alpha - doesnt work rn
+			//if (multipass_texture_maps.alpha_img)
+			//{
+			//	// enable blending
+			//	dev->SetRenderState(D3DRS_ALPHABLENDENABLE, 1);
+
+			//	// set alpha as base color
+			//	game::sp::dx->device->SetTexture(0, multipass_texture_maps.alpha_img->texture.basemap);
+
+			//	// set alpha as second stage alpha
+			//	dev->SetTexture(1, multipass_texture_maps.alpha_img->texture.basemap);
+			//	dev->SetTextureStageState(1, D3DTSS_ALPHAARG1, D3DTA_CURRENT);
+			//	dev->SetTextureStageState(1, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
+			//	dev->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+
+			//	// draw alpha adjusted second layer
+			//	dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, drawstream->localSurf->vertCount, offset, drawstream->localSurf->triCount);
+
+			//	// disable blending
+			//	dev->SetRenderState(D3DRS_ALPHABLENDENABLE, 0);
+			//}
+
+			return true;
+		}
+
+		return false;
 	}
 
 	// ------------------------
