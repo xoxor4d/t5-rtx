@@ -295,23 +295,25 @@ namespace components::sp
 
 			if (state->material->textureTable && state->material->textureTable->u.image)
 			{
-				if (state->material->textureTable->u.image->mapType == 5)
-				{
-					if (const auto identity = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_IDENTITY_NORMAL_MAP];
-							identity && identity->texture.basemap)
-					{
-						// reduce rapid sky switching on some maps?
-						if (fixed_function::last_valid_sky_texture)
-						{
-							game::sp::dx->device->SetTexture(0, fixed_function::last_valid_sky_texture);
-						}
-						else
-						{
-							game::sp::dx->device->SetTexture(0, identity->texture.basemap);
-						}
-					}
-				}
-				else
+				// replace sky texture with something else if we failed to switch to a proper skybox in r_set_material
+				//if (state->material->textureTable->u.image->mapType == 5)
+				//{
+				//	if (const auto identity = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_IDENTITY_NORMAL_MAP];
+				//			identity && identity->texture.basemap)
+				//	{
+				//		// reduce rapid sky switching on some maps?
+				//		if (fixed_function::last_valid_sky_texture)
+				//		{
+				//			game::sp::dx->device->SetTexture(0, fixed_function::last_valid_sky_texture);
+				//		}
+				//		else
+				//		{
+				//			game::sp::dx->device->SetTexture(0, identity->texture.basemap);
+				//		}
+				//	}
+				//}
+				//else
+				if (state->material->textureTable->u.image->mapType != 5)
 				{
 					// non cubemap images or cubemaps that were replaced with kowloon
 					game::sp::dx->device->SetTexture(0, state->material->textureTable->u.image->texture.basemap);

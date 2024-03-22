@@ -22,55 +22,25 @@ namespace components
 			utils::replace_all(map_name, std::string("maps/"), "");		// if sp map
 			utils::replace_all(map_name, std::string(".d3dbsp"), "");
 
-			bool found = false;
 			for (const auto& s : m_settings)
 			{
 				if (s.mapname == map_name)
 				{
-					m_max_distance = s.max_distance;
-					m_color = s.m_color;
-
-					if (game::is_sp)
-					{
-						//sp::main_module::skysphere_spawn(s.skybox);
-					}
-					else
-					{
-						//mp::main_module::skysphere_spawn(s.skybox); // todo - mp
-					}
-
-					found = true;
+					m_loaded_map_settings = s;
 					break;
-				}
-			}
-
-			if (!found)
-			{
-				m_max_distance = 5000.0f;
-				m_color.packed = D3DCOLOR_XRGB(200, 200, 220);
-
-				//const bool is_skysphere_model_valid = game::is_sp ? sp::main_module::skysphere_is_model_valid() : false; // todo - mp
-				const bool is_skysphere_model_valid = false;
-				if (!flags::has_flag("no_default_sky") && !is_skysphere_model_valid)
-				{
-					// always spawn sunset
-					if (game::is_sp)
-					{
-						//sp::main_module::skysphere_spawn(4);
-					}
-					else
-					{
-						//mp::main_module::skysphere_spawn(4); // todo - mp
-					}
 				}
 			}
 		}
 	}
 
 	constexpr auto INI_MAPNAME_ARG = 0;
-	constexpr auto INI_SKYBOX_ARG = 1;
-	constexpr auto INI_FOG_MAX_ARG = 2;
-	constexpr auto INI_FOG_COLOR_ARG_BEGIN = 3;
+	constexpr auto INI_FOG_DIST = 1;
+	constexpr auto INI_FOG_COLOR_BEGIN = 2;
+	constexpr auto INI_SUN_DIR_BEGIN = 5;
+	constexpr auto INI_SUN_COLOR_BEGIN = 8;
+	constexpr auto INI_SUN_INTENSITY = 11;
+	constexpr auto INI_SKY_INDEX = 12;
+	constexpr auto INI_ARGS_TOTAL = 13;
 
 	bool map_settings::load_settings()
 	{
@@ -97,19 +67,30 @@ namespace components
 				// split string on ','
 				args = utils::split(input, ',');
 
-				if (args.size() == INI_FOG_COLOR_ARG_BEGIN+3) // fog colors rgb are last
+				if (args.size() == INI_ARGS_TOTAL)
 				{
-					const DWORD color = D3DCOLOR_XRGB(
-						utils::try_stoi(args[INI_FOG_COLOR_ARG_BEGIN+0], 255), 
-						utils::try_stoi(args[INI_FOG_COLOR_ARG_BEGIN+1], 255), 
-						utils::try_stoi(args[INI_FOG_COLOR_ARG_BEGIN+2], 255));
-
 					m_settings.push_back(
 						{
 							args[INI_MAPNAME_ARG],
-							utils::try_stoi(args[INI_SKYBOX_ARG], 0),
-							utils::try_stof(args[INI_FOG_MAX_ARG], 5000.0f),
-							color
+							utils::try_stof(args[INI_FOG_DIST], 5000.0f),
+							D3DCOLOR_XRGB
+							(
+								utils::try_stoi(args[INI_FOG_COLOR_BEGIN + 0], 255),
+								utils::try_stoi(args[INI_FOG_COLOR_BEGIN + 1], 255),
+								utils::try_stoi(args[INI_FOG_COLOR_BEGIN + 2], 255)
+							),
+							{
+								utils::try_stof(args[INI_SUN_DIR_BEGIN + 0], 75.0f),
+								utils::try_stof(args[INI_SUN_DIR_BEGIN + 1], -15.0f),
+								utils::try_stof(args[INI_SUN_DIR_BEGIN + 2], -35.0f)
+							},
+							{
+								utils::try_stof(args[INI_SUN_COLOR_BEGIN + 0], 255),
+								utils::try_stof(args[INI_SUN_COLOR_BEGIN + 1], 255),
+								utils::try_stof(args[INI_SUN_COLOR_BEGIN + 2], 255)
+							},
+							utils::try_stof(args[INI_SUN_INTENSITY], 1.0f),
+							utils::try_stoi(args[INI_SKY_INDEX], 2)
 						});
 				}
 			}

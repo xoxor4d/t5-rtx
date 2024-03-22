@@ -26,8 +26,10 @@
 #pragma warning(push)
 #pragma warning(disable: 26495)
 #include <d3d9.h>
-#include <d3dx9.h>
+//#include <d3dx9.h>
+#include <d3dx9math.h>
 #pragma warning(pop)
+#pragma comment(lib, "D3dx9.lib")
 
 #if DEBUG
 #define DEBUG_PRINT(_MSG) if constexpr (DEBUG) { printf(_MSG); }

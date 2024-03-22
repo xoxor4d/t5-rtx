@@ -898,25 +898,19 @@ namespace components::sp
 
 		if (state->material->info.sortKey == 5)
 		{
+			// maptype 5 = cube
 			if (state->material->textureTable->u.image->mapType == 5)
 			{
-				// maptype 5 = cube so load mat 'mc/mtl_skybox_sp_kowloon' instead?
 				mat.technique_type = game::TECHNIQUE_UNLIT;
-				switch_material(&mat, "mc/mtl_skybox_sp_kowloon");
-
-				//if (switch_material(&mat, "mc/mtl_skybox_sp_kowloon"))
-				//{
-					//if (!switch_material(&mat, "identityNormalMap"))
-					//{
-					//	int x = 1;
-					//	//if (const auto identity = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_IDENTITY_NORMAL_MAP];
-					//	//	identity && identity->texture.basemap)
-					//	//{
-					//	//	state->material->textureTable->u.image = identity;
-					//	//	//game::sp::dx->device->SetTexture(0, identity->texture.basemap);
-					//	//}
-					//}
-				//}
+				const auto sky_index = map_settings::settings()->sky_index;
+				if (!sky_index)
+				{
+					switch_material(&mat, "mc/mtl_skybox_sp_kowloon");
+				}
+				else
+				{
+					switch_material(&mat, utils::va("mtl_rtx_sky%02d", sky_index));
+				}
 			}
 		}
 

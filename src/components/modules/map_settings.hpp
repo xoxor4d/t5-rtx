@@ -12,21 +12,23 @@ namespace components
 		static map_settings* p_this;
 		static map_settings* get();
 
-		static inline float m_max_distance = 5000.0f;
-		static inline game::GfxColor m_color = { 0x00FFFFFF };
+		struct map_settings_s
+		{
+			std::string		mapname;
+			float			fog_distance = 5000.0f;
+			game::GfxColor	fog_color = { 0x00FFFFFF };
+			game::vec3_t	sun_direction = { 75.0f, -15.0f, -35.0f };
+			game::vec3_t	sun_color = { 255.0f, 255.0f, 255.0f };
+			float			sun_intensity = 1.0f;
+			int				sky_index = 2;
+		};
 
+		static inline const map_settings_s* settings() { return &m_loaded_map_settings; }
 		void set_settings_for_loaded_map(bool reload_settings = false);
 
 	private:
-		struct settings_s
-		{
-			std::string mapname;
-			int skybox;
-			float max_distance = 5000.0f;
-			game::GfxColor m_color = { 0x00FFFFFF };
-		};
-
-		static inline std::vector<settings_s> m_settings;
+		static inline map_settings_s m_loaded_map_settings = {};
+		static inline std::vector<map_settings_s> m_settings;
 		bool load_settings();
 	};
 }

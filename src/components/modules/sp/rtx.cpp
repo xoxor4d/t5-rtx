@@ -30,12 +30,30 @@ namespace components::sp
 
 		if (!flags::has_flag("no_fog"))
 		{
+			const auto s = map_settings::settings();
 			const float fog_start = 1.0f;
+
 			dev->SetRenderState(D3DRS_FOGENABLE, TRUE);
-			dev->SetRenderState(D3DRS_FOGCOLOR, map_settings::m_color.packed);
+			dev->SetRenderState(D3DRS_FOGCOLOR, s->fog_color.packed);
 			dev->SetRenderState(D3DRS_FOGVERTEXMODE, D3DFOG_LINEAR);
 			dev->SetRenderState(D3DRS_FOGSTART, *(DWORD*)(&fog_start));
-			dev->SetRenderState(D3DRS_FOGEND, *(DWORD*)(&map_settings::m_max_distance));
+			dev->SetRenderState(D3DRS_FOGEND, *(DWORD*)(&s->fog_distance));
+		}
+
+		if (!flags::has_flag("no_sun"))
+		{
+			const auto s = map_settings::settings();
+
+			D3DLIGHT9 light = {};
+			light.Type = D3DLIGHT_DIRECTIONAL;
+			light.Diffuse.r = (s->sun_color[0] / 255.0f) * s->sun_intensity;
+			light.Diffuse.g = (s->sun_color[1] / 255.0f) * s->sun_intensity;
+			light.Diffuse.b = (s->sun_color[2] / 255.0f) * s->sun_intensity;
+
+			D3DXVec3Normalize((D3DXVECTOR3*)&light.Direction, (const D3DXVECTOR3*)&s->sun_direction);
+
+			dev->SetLight(0, &light);
+			dev->LightEnable(0, TRUE);
 		}
 
 #if 0

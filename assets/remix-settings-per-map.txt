@@ -1,0 +1,14 @@
+### remix runtime settings per map
+
+
+| map					| sky brightness
+|-----------------------|-----------------
+| zombie_theater		|		5.0
+| zombie_coast			|		0.1
+| zombie_temple			|		1.0
+| zombie_moon			|		0.1
+| zombie_cosmodrome		|		0.38
+| zombie_cod5_sumpf		|		0.22
+| zombie_cod5_prototype	|		0.420
+| zombie_cod5_factory	|		0.250
+| cuba					|		0.110

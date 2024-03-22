@@ -78,9 +78,9 @@ static_assert(sizeof(intptr_t) == 4 && sizeof(void*) == 4 && sizeof(size_t) == 4
 //};
 
 // Bridge d3d9
-#pragma comment(linker, "/export:D3DXCompileShader=d3dx9_43.D3DXCompileShader")
-#pragma comment(linker, "/export:D3DXSaveSurfaceToFileA=d3dx9_43.D3DXSaveSurfaceToFileA")
-#pragma comment(linker, "/export:D3DXCreateBuffer=d3dx9_43.D3DXCreateBuffer")
-#pragma comment(linker, "/export:D3DXGetShaderConstantTable=d3dx9_43.D3DXGetShaderConstantTable")
-#pragma comment(linker, "/export:D3DXGetShaderInputSemantics=d3dx9_43.D3DXGetShaderInputSemantics")
-#pragma comment(linker, "/export:D3DXGetShaderOutputSemantics=d3dx9_43.D3DXGetShaderOutputSemantics")
+//#pragma comment(linker, "/export:D3DXCompileShader=d3dx9_43.D3DXCompileShader")
+//#pragma comment(linker, "/export:D3DXSaveSurfaceToFileA=d3dx9_43.D3DXSaveSurfaceToFileA")
+//#pragma comment(linker, "/export:D3DXCreateBuffer=d3dx9_43.D3DXCreateBuffer")
+//#pragma comment(linker, "/export:D3DXGetShaderConstantTable=d3dx9_43.D3DXGetShaderConstantTable")
+//#pragma comment(linker, "/export:D3DXGetShaderInputSemantics=d3dx9_43.D3DXGetShaderInputSemantics")
+//#pragma comment(linker, "/export:D3DXGetShaderOutputSemantics=d3dx9_43.D3DXGetShaderOutputSemantics")

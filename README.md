@@ -39,14 +39,11 @@ only compatible with sp (including [game_mod](https://github.com/Nukem9/LinkerMo
 
 1) All of the above steps
 
-2) Install the latest full rtx-remix release (0.4.0 at this time)   
-https://github.com/NVIDIAGameWorks/rtx-remix/tags
-
-3) (Optional) Install the latest `github action` builds of:  
+2) (Optional) Install the latest `github action` builds of:  
 remix bridge - https://github.com/NVIDIAGameWorks/bridge-remix/actions  
 remix runtime - https://github.com/NVIDIAGameWorks/dxvk-remix/actions  
 
-4) Download the latest t5-rtx `github actions` build:  
+3) Download the latest t5-rtx `github actions` build:  
   Release-binaries-t5-rtx - https://github.com/xoxor4d/t5-rtx/actions 
   - Drop `t5rtx.asi` and the contents of the `assets` folder into your CoD-BO1 root directory and start the game.  
 
@@ -54,9 +51,10 @@ remix runtime - https://github.com/NVIDIAGameWorks/dxvk-remix/actions
 <br>
 
 ## ⚠️ Current issues:
-- vid_restart (changing resolution / refreshrate) should generally work but might cause the game to be unstable afterwards
+- vid_restart (changing resolution / refresh rate) should generally work but might cause unstability afterwards
 - main menu TV might behave odd and will be darker after a map was loaded (changing hash etc)
 - there are still a few objects that wobble, indicating that they are rendered using shaders
+- like other cod's, teleporting (fast scenery change) might crash remix
 
 <br>
 
@@ -64,6 +62,29 @@ remix runtime - https://github.com/NVIDIAGameWorks/dxvk-remix/actions
 
 ![img](img/01.jpg)
 </div>
+
+
+## Advanced Settings:
+
+- A. Commandline Arguments:  
+  - `-stock_effects` :: render effects using shaders
+  - `-no_sun` :: disable directional light spawning (mapsettings)
+  - `-no_fog` :: disable fog (mapsettings)
+  - `-no_forced_lod` :: do not set __r_forceLod__ to __high__ by default  
+  - `-disable_normal_spec` :: disable loading of specular and normal maps (dev. only)  
+  <br>
+  > eg: &ensp;`c:\path\BlackOps.exe -no_forced_lod -stock_effects` 
+
+- B. Dvars: 
+    - `r_forceLod` :: force all models to a specific LOD (highest by default)
+    - `r_showTess` :: show various info about surfaces (incl. materials and the images it is using)
+	- `r_showTessDist` :: can be used to limit the draw distance of the 3D text ^
+	- `rtx_water_uv_scale` :: UV scale of water
+
+<br>
+
+- C. Console commands:  
+  - `mapsettings_update` :: reload __map_settings.ini__ found in __root/t5rtx__
 
 <br>
 
