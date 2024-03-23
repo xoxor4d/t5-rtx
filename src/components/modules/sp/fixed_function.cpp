@@ -549,6 +549,11 @@ namespace components::sp
 
 	int R_SetIndexData(game::GfxCmdBufPrimState* state, const unsigned __int16* indices, int tri_count)
 	{
+		if (!tri_count)
+		{
+			return -1;
+		}
+
 		const auto buf = game::sp::gfx_buf;
 		const auto index_count = 3 * tri_count;
 
@@ -625,7 +630,7 @@ namespace components::sp
 			for (auto i = 0u; i < surf->vertCount; i++)
 			{
 				// packed source vertex
-				const auto src_vert = is_skinned_vert ? skinned_surf->surf.u.skinnedVert[i] : *surf->verts0;
+				const auto src_vert = is_skinned_vert ? skinned_surf->surf.u.skinnedVert[i] : surf->verts0[i];
 
 				// position of our unpacked vert within the vertex buffer
  				const auto v_pos_in_buffer = i * MODEL_VERTEX_STRIDE;
@@ -1774,9 +1779,9 @@ namespace components::sp
 		utils::hook::nop(0x73C977, 6);
 		utils::hook(0x73C977, R_DrawXModelSkinnedUncached_stub, HOOK_JUMP).install()->quick(); // eg. viewmodel hands
 
-		// ^ rigid skinned (only very few models) - doesnt render?
-		//utils::hook::nop(0x73DFAA, 6);
-		//utils::hook(0x73DFAA, R_DrawXModelSkinnedUncached_stub2, HOOK_JUMP).install()->quick();
+		// ^ rigid skinned (only very few models) - doesnt render? (R_TessXModelRigidSkinnedDrawSurfList)
+		utils::hook::nop(0x73DFAA, 6);
+		utils::hook(0x73DFAA, R_DrawXModelSkinnedUncached_stub2, HOOK_JUMP).install()->quick();
 
 		// #
 		// TODO fixed-function rendering of static skinned models
