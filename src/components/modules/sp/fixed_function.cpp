@@ -1,5 +1,7 @@
 #include "std_include.hpp"
 
+// use separate vertexbuffer for effects (instead of the dynamic vertex buffer the game uses for a lot of other things)
+// improves fx performance quite a bit
 #define USE_NEW_FX_SYS 0
 
 using namespace game::sp;
@@ -29,11 +31,6 @@ namespace components::sp
 	constexpr auto WORLD_VERTEX_STRIDE = 36u;
 	constexpr auto WORLD_VERTEX_FORMAT = (D3DFVF_XYZ | D3DFVF_NORMAL | D3DFVF_DIFFUSE | D3DFVF_TEX1);
 	IDirect3DVertexBuffer9* gfx_world_vertexbuffer = nullptr;
-
-	// #
-
-	static IDirect3DVertexBuffer9* dynamic_codemesh_vb = nullptr;
-
 
 	// #
 	// general functions
@@ -1273,7 +1270,6 @@ namespace components::sp
 
 	void R_TessCodeMeshList_begin(game::GfxDrawSurfListArgs* listArgs)
 	{
-		const auto source = listArgs->context.source;
 		const auto prim = &listArgs->context.state->prim;
 
 		// #
@@ -1295,6 +1291,8 @@ namespace components::sp
 
 
 #if !USE_NEW_FX_SYS // old way
+
+		const auto source = listArgs->context.source;
 
 		// #
 		// unpack codemesh vertex data and place new data into the dynamic vertex buffer
@@ -1380,12 +1378,12 @@ namespace components::sp
 		}
 
 #else
-		if (prim->streams[0].vb != dynamic_codemesh_vb || prim->streams[0].offset != 0 || prim->streams[0].stride != MODEL_VERTEX_STRIDE)
+		if (prim->streams[0].vb != fixed_function::dynamic_codemesh_vb || prim->streams[0].offset != 0 || prim->streams[0].stride != MODEL_VERTEX_STRIDE)
 		{
-			prim->streams[0].vb = dynamic_codemesh_vb;
+			prim->streams[0].vb = fixed_function::dynamic_codemesh_vb;
 			prim->streams[0].offset = 0;
 			prim->streams[0].stride = MODEL_VERTEX_STRIDE;
-			prim->device->SetStreamSource(0, dynamic_codemesh_vb, 0, MODEL_VERTEX_STRIDE);
+			prim->device->SetStreamSource(0, fixed_function::dynamic_codemesh_vb, 0, MODEL_VERTEX_STRIDE);
 		}
 #endif
 
@@ -1592,9 +1590,6 @@ namespace components::sp
 
 	void pre_rb_draw3d()
 	{
-		//const auto dev = dx->device;
-		//const auto source = game::sp::gfxCmdBufSourceState;
-
 #ifdef ZNEAR_TEST
 		if (const auto var = game::sp::Dvar_FindVar("r_sunflare_fadein"); var)
 		{
@@ -1607,26 +1602,30 @@ namespace components::sp
 		}
 #endif
 		//rtx::setup_rtx(source->u.input.data->viewParms);
+	}
 
+	void fixed_function::copy_fx_buffer()
+	{
 #if USE_NEW_FX_SYS
+		const auto dev = dx->device;
+		const auto frontend_data = game::sp::get_frontenddata_out();
 
-		// alloc buffer once
-		if (static bool alloc_dynamic_codemesh_vertexbuffer = false; !alloc_dynamic_codemesh_vertexbuffer)
+		// alloc buffer on first use
+		// released on map shutdown - main_module::on_map_shutdown
+		if (!dynamic_codemesh_vb)
 		{
-			if (const auto hr = dev->CreateVertexBuffer(source->u.input.data->codeMeshPtr->vb.total, D3DUSAGE_WRITEONLY, MODEL_VERTEX_FORMAT, D3DPOOL_DEFAULT, &dynamic_codemesh_vb, nullptr);
+			if (const auto hr = dev->CreateVertexBuffer(frontend_data->codeMeshPtr->vb.total, D3DUSAGE_WRITEONLY | D3DUSAGE_DYNAMIC, MODEL_VERTEX_FORMAT, D3DPOOL_DEFAULT, &dynamic_codemesh_vb, nullptr);
 				hr > 0)
 			{
 				__debugbreak();
 			}
-
-			alloc_dynamic_codemesh_vertexbuffer = true;
 		}
 
 		// #
 		// lock codemesh vb -> unpack vertex data and place new data into the dynamic_codemesh_vb
 
 		void* og_buffer_data;
-		if (const auto hr = source->u.input.data->codeMeshPtr->vb.buffer->Lock(0, source->u.input.data->codeMeshPtr->vb.used, &og_buffer_data, D3DLOCK_READONLY);
+		if (const auto hr = frontend_data->codeMeshPtr->vb.buffer->Lock(0, frontend_data->codeMeshPtr->vb.used, &og_buffer_data, D3DLOCK_READONLY);
 			hr < 0)
 		{
 			//R_FatalLockError(hr);
@@ -1639,13 +1638,13 @@ namespace components::sp
 		auto i = 0u;
 
 		void* buffer_data = nullptr;
-		if (const auto hr = dynamic_codemesh_vb->Lock(0, source->u.input.data->codeMeshPtr->vb.used, &buffer_data, D3DUSAGE_WRITEONLY);
+		if (const auto hr = dynamic_codemesh_vb->Lock(0, frontend_data->codeMeshPtr->vb.used, &buffer_data, D3DUSAGE_WRITEONLY);
 			hr >= 0)
 		{
-			for (i = 0u; i * source->u.input.data->codeMeshPtr->vertSize < (unsigned)source->u.input.data->codeMeshPtr->vb.used && i < 0x4000; i++)
+			for (i = 0u; i * frontend_data->codeMeshPtr->vertSize < (unsigned)frontend_data->codeMeshPtr->vb.used && i < 0x4000; i++)
 			{
 				// position of vert within the vertex buffer
-				const auto v_pos_in_buffer = i * source->u.input.data->codeMeshPtr->vertSize; // size of GfxPackedVertex
+				const auto v_pos_in_buffer = i * frontend_data->codeMeshPtr->vertSize; // size of GfxPackedVertex
 
 				/*if (v_pos_in_buffer > source->data->codeMesh.vb.used)
 				{
@@ -1686,13 +1685,9 @@ namespace components::sp
 			dynamic_codemesh_vb = nullptr;
 		}
 
-		const auto y = i;
-
 		// unlock og codemesh vb
-		//source->u.input.data->codeMeshPtr->vb.buffer->Unlock();
-
+		frontend_data->codeMeshPtr->vb.buffer->Unlock();
 #endif
-
 	}
 
 	__declspec(naked) void rb_draw3d_internal_stub()
@@ -1800,6 +1795,7 @@ namespace components::sp
 		// hook beginning of 'RB_Draw3DInternal' - not of use rn
 		utils::hook::nop(0x6D2EC6, 6); utils::hook(0x6D2EC6, rb_draw3d_internal_stub, HOOK_JUMP).install()->quick();
 
+		//utils::hook(0x6C61DA, copy_fx_buffer, HOOK_CALL).install()->quick();
 
 		// fixed-function effects
 		if (!flags::has_flag("stock_effects"))

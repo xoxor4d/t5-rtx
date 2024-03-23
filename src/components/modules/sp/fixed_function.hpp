@@ -10,6 +10,7 @@ namespace components::sp
 		const char* get_name() override { return "fixed_function_sp"; }
 
 		static inline IDirect3DBaseTexture9* last_valid_sky_texture = nullptr;
+		static inline IDirect3DVertexBuffer9* dynamic_codemesh_vb = nullptr;
 
 		struct vb_vert_range_s
 		{
@@ -22,6 +23,8 @@ namespace components::sp
 		static void build_worldmatrix_for_object(float (*mtx)[4], const float* quat, const float* origin, const float scale);
 		static void build_worldmatrix_for_object(float (*mtx)[4], float(*model_axis)[3], const float* origin, const float scale);
 		static bool render_sw4_dual_blend(const game::GfxCmdBufState* state, const game::XSurface* surf, std::uint32_t vertex_offset);
+
+		static void copy_fx_buffer();
 
 	private:
 	};

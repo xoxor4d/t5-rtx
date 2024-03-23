@@ -414,7 +414,6 @@ namespace components::sp
 	}
 
 	// call and move ptr after calling R_ToggleSmpFrame
-
 	void fix_dynamic_buffers()
 	{
 		// og call - R_EndFrame
@@ -435,6 +434,7 @@ namespace components::sp
 
 				// RB_UpdateDynamicBuffers
 				utils::hook::call<void(__cdecl)()>(0x6EBBB0)();
+				fixed_function::copy_fx_buffer();
 			}
 		}
 	}
@@ -1092,6 +1092,12 @@ namespace components::sp
 		}
 
 		fixed_function::fixed_function::last_valid_sky_texture = nullptr;
+
+		if (fixed_function::dynamic_codemesh_vb)
+		{
+			fixed_function::dynamic_codemesh_vb->Release();
+			fixed_function::dynamic_codemesh_vb = nullptr;
+		}
 	}
 
 	main_module::main_module()
