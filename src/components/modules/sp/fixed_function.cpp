@@ -337,7 +337,7 @@ namespace components::sp
 
 			dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
 
-			if (dvars::r_showTess && dvars::r_showTess->current.enabled)
+			if (dvars::r_showTess && dvars::r_showTess->current.enabled && dvars::r_showTess->current.integer <= 2)
 			{
 				main_module::RB_ShowTess(src, state, &mtx[3][0], "Static", game::COLOR_WHITE);
 			}
@@ -518,7 +518,7 @@ namespace components::sp
 			}
 		}
 
-		if (dvars::r_showTess && dvars::r_showTess->current.enabled)
+		if (dvars::r_showTess && dvars::r_showTess->current.enabled && dvars::r_showTess->current.integer <= 2)
 		{
 			main_module::RB_ShowTess(source, state, &mtx[3][0], "XMRigid", game::COLOR_WHITE);
 		}
@@ -689,7 +689,7 @@ namespace components::sp
 			is_skinned_vert ? src->skinnedPlacement.base.origin : skinned_surf->placement.base.origin,
 			is_skinned_vert ? src->skinnedPlacement.scale : skinned_surf->placement.scale);
 
-		if (dvars::r_showTess && dvars::r_showTess->current.enabled)
+		if (dvars::r_showTess && dvars::r_showTess->current.enabled && dvars::r_showTess->current.integer <= 2)
 		{
 			main_module::RB_ShowTess(src, state, &mtx[3][0], "XMSkin", game::COLOR_WHITE);
 		}
@@ -814,7 +814,7 @@ namespace components::sp
 				float mtx[4][4] = {};
 				fixed_function::build_worldmatrix_for_object(&mtx[0], &inst->placement.axis[0], inst->placement.origin, src->skinnedPlacement.scale);
 
-				if (dvars::r_showTess && dvars::r_showTess->current.enabled)
+				if (dvars::r_showTess && dvars::r_showTess->current.enabled && dvars::r_showTess->current.integer <= 2)
 				{
 					main_module::RB_ShowTess(src, state, &mtx[3][0], "StaticSkin", game::COLOR_WHITE);
 				}
@@ -979,10 +979,20 @@ namespace components::sp
 			dev->SetTransform(D3DTS_TEXTURE0, reinterpret_cast<D3DMATRIX*>(&m[0]));
 			dev->SetTextureStageState(0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_COUNT2);
 		}
+
+		if (dvars::r_showTess && dvars::r_showTess->current.enabled && dvars::r_showTess->current.integer >= 3 && dvars::r_showTess->current.integer < 5)
+		{
+			const game::vec3_t center =
+			{
+				(tris->mins[0] + tris->maxs[0]) * 0.5f,
+				(tris->mins[1] + tris->maxs[1]) * 0.5f,
+				(tris->mins[2] + tris->maxs[2]) * 0.5f
+			};
+			main_module::RB_ShowTess(src, state, center, "BSP", game::COLOR_WHITE);
+		}
 		
 		dev->SetStreamSource(0, gfx_world_vertexbuffer, WORLD_VERTEX_STRIDE * tris->firstVertex, WORLD_VERTEX_STRIDE);
 		dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, tris->vertexCount, baseIndex, triCount);
-
 
 		if (is_water)
 		{
@@ -1211,36 +1221,8 @@ namespace components::sp
 			// #
 			// transform
 
-			float model_axis[3][3] = {};
-
-			const auto placement = bsurf->placement;
-			utils::unit_quat_to_axis(placement->base.quat, model_axis);
-			const auto scale = placement->scale;
-
-			//const auto mtx = source->matrices.matrix[0].m;
 			float mtx[4][4] = {};
-
-			// inlined ikMatrixSet44
-			mtx[0][0] = model_axis[0][0] * scale;
-			mtx[0][1] = model_axis[0][1] * scale;
-			mtx[0][2] = model_axis[0][2] * scale;
-			mtx[0][3] = 0.0f;
-
-			mtx[1][0] = model_axis[1][0] * scale;
-			mtx[1][1] = model_axis[1][1] * scale;
-			mtx[1][2] = model_axis[1][2] * scale;
-			mtx[1][3] = 0.0f;
-
-			mtx[2][0] = model_axis[2][0] * scale;
-			mtx[2][1] = model_axis[2][1] * scale;
-			mtx[2][2] = model_axis[2][2] * scale;
-			mtx[2][3] = 0.0f;
-
-			mtx[3][0] = placement->base.origin[0];
-			mtx[3][1] = placement->base.origin[1];
-			mtx[3][2] = placement->base.origin[2];
-			mtx[3][3] = 1.0f;
-
+			fixed_function::build_worldmatrix_for_object(&mtx[0], bsurf->placement->base.quat, bsurf->placement->base.origin, bsurf->placement->scale);
 			prim->device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
 
 			// #
@@ -1255,6 +1237,11 @@ namespace components::sp
 				prim->streams[0].offset = base_vertex;
 				prim->streams[0].stride = WORLD_VERTEX_STRIDE;
 				prim->device->SetStreamSource(0, gfx_world_vertexbuffer, base_vertex, WORLD_VERTEX_STRIDE);
+			}
+
+			if (dvars::r_showTess && dvars::r_showTess->current.enabled && dvars::r_showTess->current.integer >= 5)
+			{
+				main_module::RB_ShowTess(source, listArgs->context.state, bsurf->placement->base.origin, "BModel", game::COLOR_WHITE);
 			}
 
 			const auto base_index = R_SetIndexData(prim, &game::sp::get_g_world_draw()->indices[gfxsurf->tris.baseIndex], gfxsurf->tris.triCount);

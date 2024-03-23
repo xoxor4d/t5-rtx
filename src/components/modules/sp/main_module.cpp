@@ -170,6 +170,9 @@ namespace components::sp
 		*(DWORD*)0x2910160 ^= 1;
 	}
 
+	// model:	[1] techset - [2] material
+	// bsp:	[3] techset - [4] material
+	// bmodel:	[5] techset - [6] material
 	void main_module::RB_ShowTess(game::GfxCmdBufSourceState* source, game::GfxCmdBufState* state, const float* center, const char* name, const float* color)
 	{
 		float offset_center[3];
@@ -201,67 +204,65 @@ namespace components::sp
 			tech = state->material->u_techset.localTechniqueSet->techniques[static_cast<std::uint8_t>(state->techType)];
 		}
 
-		const char* info_string;
-		//const char* info_id_string;
-
-		const auto r_showTess = game::sp::Dvar_FindVar("r_showTess");
-		if (tech && r_showTess)
+		if (const auto r_showTess = game::sp::Dvar_FindVar("r_showTess"); r_showTess && tech)
 		{
 			switch (r_showTess->current.integer)
 			{
-			case 1:
-				info_string = tech->name;
-				offset_center[2] = (((float)state->techType - 16.0f) * 0.3f) + offset_center[2];
-				//info_id_string = "T";
-				break;
-			case 4:
-				if (tech->passArray[0].vertexShader)
-					info_string = tech->passArray[0].vertexShader->name;
-				else
-					info_string = "<NONE>";
-				offset_center[2] = (((float)state->techType - 16.0f) * 0.3f) + offset_center[2];
-				//info_id_string = "VS";
-				break;
-			case 5:
-				if (tech->passArray[0].u_pixelshader.pixelShader)
-					info_string = tech->passArray[0].u_pixelshader.pixelShader->name;
-				else
-					info_string = "<NONE>";
-				offset_center[2] = (((float)state->techType - 16.0f) * 0.3f) + offset_center[2];
-				//info_id_string = "PS";
-				break;
-			case 2:
-				info_string = state->material->u_techset.localTechniqueSet->name;
-				//info_id_string = "TS";
-				break;
-			case 3:
-				info_string = state->material->info.name;
-				//info_id_string = "M";
-				break;
-			default:
-				info_string = "?";
-				//info_id_string = "?";
-				break;
-			} 
-
-			//const char* str = utils::va("%s:%s=%s", name, info_id_string, info_string); 
-			//R_AddDebugString(&source->u.input.data->debugGlobals, offset_center, color, font_scale, str);
-
-			R_AddDebugString(&source->u.input.data->debugGlobals, offset_center, color, font_scale, utils::va("%s: %s", name, info_string));
-
-			if (r_showTess->current.integer == 3)
-			{
-				font_scale *= 0.5f;
-				for (auto i = 0; i < state->material->textureCount; i++)
+				case 1: // techset model
+				case 3: // techset bsp
+				case 5: // techset bmodel
 				{
-					if (&state->material->textureTable[i] && state->material->textureTable[i].u.image && state->material->textureTable[i].u.image->name)
-					{
-						const auto img = state->material->textureTable[i].u.image;
+					// offset_center[2] = (((float)state->techType - 16.0f) * 0.3f) + offset_center[2];
+					// header
+					R_AddDebugString(&source->u.input.data->debugGlobals, offset_center, color, font_scale, utils::va("%s: %s", name, tech->name));
+					font_scale *= 0.5f;
 
-						offset_center[2] -= viewmodel_string ? 0.25f : 2.5f;
-						R_AddDebugString(&source->u.input.data->debugGlobals, offset_center, color, font_scale, utils::va("> [%d] %s", static_cast<std::uint8_t>(img->semantic), img->name));
-					}
+					offset_center[2] -= viewmodel_string ? 0.25f : 2.5f;
+					R_AddDebugString(&source->u.input.data->debugGlobals, offset_center, color, font_scale, utils::va("> [TQ]: %s", state->material->u_techset.localTechniqueSet->name));
+
+					offset_center[2] -= viewmodel_string ? 0.25f : 2.5f;
+					R_AddDebugString(&source->u.input.data->debugGlobals, offset_center, color, font_scale, utils::va("> [VS] %s", tech->passArray[0].vertexShader ? tech->passArray[0].vertexShader->name : "<NONE>"));
+
+					offset_center[2] -= viewmodel_string ? 0.25f : 2.5f;
+					R_AddDebugString(&source->u.input.data->debugGlobals, offset_center, color, font_scale, utils::va("> [PS] %s", tech->passArray[0].u_pixelshader.pixelShader ? tech->passArray[0].u_pixelshader.pixelShader->name : "<NONE>"));
+					break;
 				}
+
+				case 2: // material model
+				case 4: // material bsp
+				case 6: // material bmodel
+				{
+					// header
+					R_AddDebugString(&source->u.input.data->debugGlobals, offset_center, color, font_scale, utils::va("%s: %s", name, state->material->info.name));
+					font_scale *= 0.5f;
+
+					for (auto i = 0; i < state->material->textureCount; i++)
+					{
+						if (&state->material->textureTable[i] && state->material->textureTable[i].u.image && state->material->textureTable[i].u.image->name)
+						{
+							const auto img = state->material->textureTable[i].u.image;
+							offset_center[2] -= viewmodel_string ? 0.25f : 2.5f;
+
+							const char* semantic_str;
+							switch(static_cast<std::uint8_t>(img->semantic))
+							{
+								case 0: semantic_str = "2D"; break;
+								case 1: semantic_str = "F"; break;
+								case 2: semantic_str = "C"; break;
+								case 5: semantic_str = "N"; break;
+								case 8: semantic_str = "S"; break;
+								case 11: semantic_str = "W"; break;
+								default: semantic_str = "C+"; break;
+							}
+
+							R_AddDebugString(&source->u.input.data->debugGlobals, offset_center, color, font_scale, utils::va("> [%s] %s", semantic_str, img->name)); // static_cast<std::uint8_t>(img->semantic)
+						}
+					}
+					break;
+				}
+
+				default:
+					break;
 			}
 		}
 	}

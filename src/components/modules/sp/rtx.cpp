@@ -134,13 +134,13 @@ namespace components::sp
 			"- all-but-models: disable culling of all surfaces excluding models");
 #endif
 
-		static const char* r_showTess_enum[] = { "off", "tech", "techset", "material", "vertexshader", "pixelshader" };
+		static const char* r_showTess_enum[] = { "off", "model_techset", "model_material", "bsp_techset", "bsp_material", "bmodel_techset", "bmodel_material" };
 		dvars::r_showTess = game::sp::Dvar_RegisterEnum(
 			/* name		*/ "r_showTess",
 			/* enumData */ r_showTess_enum,
 			/* default	*/ 0,
 			/* flags	*/ game::dvar_flags::none,
-			/* desc		*/ "surface data");
+			/* desc		*/ "surface data info");
 
 		dvars::r_showTessDist = game::sp::Dvar_RegisterFloat(
 			/* name		*/ "r_showTessDist",
