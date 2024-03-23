@@ -12,6 +12,12 @@ namespace components
 		static map_settings* p_this;
 		static map_settings* get();
 
+		struct cell_settings_s
+		{
+			int cell_index = -1;
+			std::vector<int> forced_cell_indices;
+		};
+
 		struct map_settings_s
 		{
 			std::string		mapname;
@@ -21,6 +27,7 @@ namespace components
 			game::vec3_t	sun_color = { 255.0f, 255.0f, 255.0f };
 			float			sun_intensity = 1.0f;
 			int				sky_index = 2;
+			std::vector<cell_settings_s> cell_settings;
 		};
 
 		static inline const map_settings_s* settings() { return &m_loaded_map_settings; }

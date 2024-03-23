@@ -105,7 +105,8 @@ namespace components::sp
 		dvars::bool_override("r_dof_enable", false);
 		dvars::bool_override("r_distortion", false);
 
-		if (dvars::r_showTess && dvars::r_showTess->current.enabled)
+		if (   (dvars::r_showTess && dvars::r_showTess->current.enabled)
+			|| (dvars::r_showCellIndex && dvars::r_showCellIndex->current.enabled))
 		{
 			if (static bool enable_developer_once = false; !enable_developer_once)
 			{
@@ -149,6 +150,12 @@ namespace components::sp
 			/* max		*/ 10000.0f,
 			/* flags	*/ game::dvar_flags::none,
 			/* desc		*/ "radius in which to draw r_showTess debug strings");
+
+		dvars::r_showCellIndex = game::sp::Dvar_RegisterBool(
+			/* name		*/ "r_showCellIndex",
+			/* default	*/ false,
+			/* flags	*/ game::dvar_flags::none,
+			/* desc		*/ "draw cell index at the center of current cell (useful for map_settings)");
 
 		dvars::rtx_water_uv_scale = game::sp::Dvar_RegisterFloat(
 			/* name		*/ "rtx_water_uv_scale",
@@ -227,17 +234,6 @@ namespace components::sp
 			{
 				_last_active_valid_cell = camera_cell_index;
 
-				// always add full cell the player is in (same as r_singlecell)
-				const auto cell = &game::sp::rgp->world->cells[camera_cell_index];
-				const auto cell_index = cell - game::sp::rgp->world->cells;
-
-
-				/*dpvsGlob->views[0][0].frustumPlanes[0].coeffs[3] += 5000.0f;
-				...
-				dpvsGlob->views[0][0].frustumPlanes[4].coeffs[3] += 5000.0f;
-				dpvsGlob->nearPlane.coeffs[2] += 0.5f;
-				dpvsGlob->nearPlane.coeffs[3] -= 0.5f;*/
-
 				// hack - disable most frustum culling
 				dpvsGlob->views[0][0].frustumPlanes[0].coeffs[3] += 5000.0f;
 				dpvsGlob->views[0][0].frustumPlanes[1].coeffs[3] += 5000.0f;
@@ -245,10 +241,55 @@ namespace components::sp
 				dpvsGlob->views[0][0].frustumPlanes[3].coeffs[3] += 5000.0f;
 				dpvsGlob->views[0][0].frustumPlanes[4].coeffs[3] += 5000.0f;
 				dpvsGlob->views[0][0].frustumPlanes[5].coeffs[3] += 5000.0f;
-				dpvsGlob->nearPlane.coeffs[3] += 5000.0f; 
+				dpvsGlob->nearPlane.coeffs[3] += 5000.0f;
+
+
+				// #
+				// always add full cell the player is in (same as r_singlecell)
+				const auto cell = &game::sp::rgp->world->cells[camera_cell_index];
+				const auto cell_index = cell - game::sp::rgp->world->cells;
 
 				game::sp::R_AddCellSurfacesAndCullGroupsInFrustumDelayed(cell, dpvs->frustumPlanes, dpvs->frustumPlaneCount, dpvs->frustumPlaneCount); // dpvs->frustumPlaneCount
 				dpvsGlob->cellVisibleBits[(cell_index >> 5) + 3] |= (1 << (cell_index & 0x1F)) & ~((1 << (cell_index & 0x1F)) & dpvsGlob->cellForceInvisibleBits[(cell_index >> 5) + 3]);
+
+
+				// #
+				// draw cell index at the center of the current cell
+				if (dvars::r_showCellIndex && dvars::r_showCellIndex->current.enabled)
+				{
+					const game::vec3_t center =
+					{
+						(cell->mins[0] + cell->maxs[0]) * 0.5f,
+						(cell->mins[1] + cell->maxs[1]) * 0.5f,
+						(cell->mins[2] + cell->maxs[2]) * 0.5f
+					};
+
+					R_AddDebugString(&game::sp::get_frontenddata_out()->debugGlobals, center, game::COLOR_GREEN, 1.0f, utils::va("Cell Index: %d", camera_cell_index));
+				}
+
+
+				// #
+				// force cells defined in map_settings.ini
+
+				const auto& cell_settings = map_settings::settings()->cell_settings;
+				if (!cell_settings.empty())
+				{
+					for (const auto& c : cell_settings)
+					{
+						if (c.cell_index == camera_cell_index)
+						{
+							for (const auto& i : c.forced_cell_indices)
+							{
+								const auto forced_cell = &game::sp::rgp->world->cells[i];
+								const auto c_index = forced_cell - game::sp::rgp->world->cells;
+								game::sp::R_AddCellSurfacesAndCullGroupsInFrustumDelayed(forced_cell, dpvs->frustumPlanes, dpvs->frustumPlaneCount, dpvs->frustumPlaneCount);
+								dpvsGlob->cellVisibleBits[(c_index >> 5) + 3] |= (1 << (c_index & 0x1F)) & ~((1 << (c_index & 0x1F)) & dpvsGlob->cellForceInvisibleBits[(c_index >> 5) + 3]);
+							}
+
+							break;
+						}
+					}
+				}
 
 				// R_VisitPortals
 				utils::hook::call<void(__cdecl)(game::GfxCell*, game::DpvsPlane*, game::DpvsPlane*, int)>(0x6B3DA0)(cell, &dpvsGlob->nearPlane, dpvs->frustumPlanes, dpvs->frustumPlaneCount);

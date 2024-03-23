@@ -51,10 +51,10 @@ remix runtime - https://github.com/NVIDIAGameWorks/dxvk-remix/actions
 <br>
 
 ## ⚠️ Current issues:
-- vid_restart (changing resolution / refresh rate) should generally work but might cause unstability afterwards
-- main menu TV might behave odd and will be darker after a map was loaded (changing hash etc)
+- `vid_restart` (changing resolution / refresh rate) should generally work but might cause instability afterwards
+- main menu TV might behave odd and will be darker after a map was loaded (changing hash of TV etc)
 - there are still a few objects that wobble, indicating that they are rendered using shaders
-- like other cod's, teleporting (fast scenery change) might crash remix
+- like other CoD's, teleporting (fast scenery change) might crash remix
 
 <br>
 
@@ -66,7 +66,14 @@ remix runtime - https://github.com/NVIDIAGameWorks/dxvk-remix/actions
 
 ## Advanced Settings:
 
-- A. Commandline Arguments:  
+- A. Per map settings:
+  - You can tweak/define per map settings such as: fog, sun, sky and manual culling overrides   
+  in the `map_settings.ini` file found in `root/t5rtx`.
+  - Manual culling overwrites:  
+    - the number `[within square brackets]` defines the cell to be tweaked
+	- following numbers `(within brackets)` are cells that will always be rendered when in the cell defined above
+
+- B. Commandline Arguments:  
   - `-stock_effects` :: render effects using shaders
   - `-no_sun` :: disable directional light spawning (mapsettings)
   - `-no_fog` :: disable fog (mapsettings)
@@ -75,15 +82,16 @@ remix runtime - https://github.com/NVIDIAGameWorks/dxvk-remix/actions
   <br>
   > eg: &ensp;`c:\path\BlackOps.exe -no_forced_lod -stock_effects` 
 
-- B. Dvars: 
+- C. Dvars: 
     - `r_forceLod` :: force all models to a specific LOD (highest by default)
     - `r_showTess` :: show various info about surfaces (incl. materials and the images it is using)
 	- `r_showTessDist` :: can be used to limit the draw distance of the 3D text ^
+	- `r_showCellIndex` :: draw cell index at the center of the current cell (map settings)
 	- `rtx_water_uv_scale` :: UV scale of water
 
 <br>
 
-- C. Console commands:  
+- D. Console commands:  
   - `mapsettings_update` :: reload __map_settings.ini__ found in __root/t5rtx__
 
 <br>

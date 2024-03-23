@@ -14,6 +14,9 @@ namespace game
 
 	static inline float COLOR_WHITE[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	static inline float COLOR_BLACK[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	static inline float COLOR_RED[4]   = { 1.0f, 0.0f, 0.0f, 1.0f };
+	static inline float COLOR_GREEN[4] = { 0.0f, 1.0f, 0.0f, 1.0f };
+	static inline float COLOR_BLUE[4]  = { 0.0f, 0.0f, 1.0f, 1.0f };
 
 	// ------------------------------------------------------------------------------------------------------------
 	// ############################################################################################################

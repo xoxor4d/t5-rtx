@@ -55,6 +55,8 @@ namespace components
 			std::string input;
 			std::vector<std::string> args;
 
+			bool reading_cull_settings = false;
+
 			// read line by line
 			while (std::getline(file, input))
 			{
@@ -64,34 +66,120 @@ namespace components
 					continue;
 				}
 
+				if (!reading_cull_settings && utils::starts_with(input, "#CULL"))
+				{
+					reading_cull_settings = true;
+					continue;
+				}
+
 				// split string on ','
 				args = utils::split(input, ',');
 
-				if (args.size() == INI_ARGS_TOTAL)
+				if (reading_cull_settings)
 				{
-					m_settings.push_back(
+					// check if there are map settings
+					bool map_settings_exist = false;
+					map_settings_s* s = nullptr;
+
+					// check if map settings exist
+					for (auto& e : m_settings)
+					{
+						if (e.mapname._Equal(args[INI_MAPNAME_ARG]))
 						{
-							args[INI_MAPNAME_ARG],
-							utils::try_stof(args[INI_FOG_DIST], 5000.0f),
-							D3DCOLOR_XRGB
-							(
-								utils::try_stoi(args[INI_FOG_COLOR_BEGIN + 0], 255),
-								utils::try_stoi(args[INI_FOG_COLOR_BEGIN + 1], 255),
-								utils::try_stoi(args[INI_FOG_COLOR_BEGIN + 2], 255)
-							),
+							s = &e;
+							map_settings_exist = true;
+							break;
+						}
+					}
+
+					// create defaults if not
+					if (!map_settings_exist)
+					{
+						m_settings.push_back(map_settings_s(args[INI_MAPNAME_ARG]));
+						s = &m_settings.back();
+					}
+
+					if (s)
+					{
+						// for each cell with its forced indices with format -> [cell](index index index)
+						for (auto a = 1u; a < args.size(); a++)
+						{
+							const auto& str = args[a];
+
+							if (str.empty())
 							{
-								utils::try_stof(args[INI_SUN_DIR_BEGIN + 0], 75.0f),
-								utils::try_stof(args[INI_SUN_DIR_BEGIN + 1], -15.0f),
-								utils::try_stof(args[INI_SUN_DIR_BEGIN + 2], -35.0f)
-							},
+								// print msg here
+								continue;
+							}
+
+							// which cell are we writing settings for?
+							const auto cell_index = utils::try_stoi(utils::split_string_between_delims(str, '[', ']'), -1);
+							if (cell_index != -1)
 							{
-								utils::try_stof(args[INI_SUN_COLOR_BEGIN + 0], 255),
-								utils::try_stof(args[INI_SUN_COLOR_BEGIN + 1], 255),
-								utils::try_stof(args[INI_SUN_COLOR_BEGIN + 2], 255)
-							},
-							utils::try_stof(args[INI_SUN_INTENSITY], 1.0f),
-							utils::try_stoi(args[INI_SKY_INDEX], 2)
-						});
+								// check for duplicate cells
+								bool ignore_current_cell = false;
+								for (const auto& c : s->cell_settings)
+								{
+									if (cell_index == c.cell_index)
+									{
+										ignore_current_cell = true;
+										break;
+									}
+								}
+
+								// cell has been added already
+								if (ignore_current_cell)
+								{
+									// print msg here
+									continue;
+								}
+
+								// get inidices
+								const auto indices_str = utils::split_string_between_delims(str, '(', ')');
+								const auto split_indices = utils::split(indices_str, ' ');
+
+								s->cell_settings.push_back(cell_settings_s(cell_index));
+								const auto c = &s->cell_settings.back();
+
+								// for each forced index
+								for (const auto& i : split_indices)
+								{
+									c->forced_cell_indices.push_back(utils::try_stoi(i, -1));
+								}
+							}
+						}
+					}
+				}
+
+				// map settings
+				else
+				{
+					if (args.size() == INI_ARGS_TOTAL)
+					{
+						m_settings.push_back(
+							{
+								args[INI_MAPNAME_ARG],
+								utils::try_stof(args[INI_FOG_DIST], 5000.0f),
+								D3DCOLOR_XRGB
+								(
+									utils::try_stoi(args[INI_FOG_COLOR_BEGIN + 0], 255),
+									utils::try_stoi(args[INI_FOG_COLOR_BEGIN + 1], 255),
+									utils::try_stoi(args[INI_FOG_COLOR_BEGIN + 2], 255)
+								),
+								{
+									utils::try_stof(args[INI_SUN_DIR_BEGIN + 0], 75.0f),
+									utils::try_stof(args[INI_SUN_DIR_BEGIN + 1], -15.0f),
+									utils::try_stof(args[INI_SUN_DIR_BEGIN + 2], -35.0f)
+								},
+								{
+									utils::try_stof(args[INI_SUN_COLOR_BEGIN + 0], 255),
+									utils::try_stof(args[INI_SUN_COLOR_BEGIN + 1], 255),
+									utils::try_stof(args[INI_SUN_COLOR_BEGIN + 2], 255)
+								},
+								utils::try_stof(args[INI_SUN_INTENSITY], 1.0f),
+								utils::try_stoi(args[INI_SKY_INDEX], 2)
+							});
+					}
 				}
 			}
 

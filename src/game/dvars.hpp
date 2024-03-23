@@ -9,6 +9,7 @@ namespace dvars
 
 	extern game::dvar_s* r_showTess;
 	extern game::dvar_s* r_showTessDist;
+	extern game::dvar_s* r_showCellIndex;
 
 	extern game::dvar_s* rtx_water_uv_scale;
 

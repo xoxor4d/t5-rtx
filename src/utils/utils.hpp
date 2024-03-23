@@ -8,6 +8,8 @@ namespace utils
 	int try_stoi(const std::string& str, const int& default_return_val = 0);
 	float try_stof(const std::string& str, const float& default_return_val = 0.0f);
 
+	std::string split_string_between_delims(const std::string& str, const char delim_start, const char delim_end);
+
 	static std::vector<std::string> split(const std::string& raw_input, const std::vector<char>& delims)
 	{
 		std::vector<std::string> strings;

@@ -37,6 +37,17 @@ namespace utils
 		return ret;
 	}
 
+	std::string split_string_between_delims(const std::string& str, const char delim_start, const char delim_end)
+	{
+		const auto first = str.find_last_of(delim_start);
+		if (first == std::string::npos) return "";
+
+		const auto last = str.find_first_of(delim_end, first);
+		if (last == std::string::npos) return "";
+
+		return str.substr(first + 1, last - first - 1);
+	};
+
 	bool starts_with(std::string_view haystack, std::string_view needle)
 	{
 		return (haystack.size() >= needle.size() && !strncmp(needle.data(), haystack.data(), needle.size()));
