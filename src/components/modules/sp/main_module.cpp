@@ -385,122 +385,6 @@ namespace components::sp
 	}
 #endif
 
-//#define SEAMLESS_VID_RESTART_TEST
-#ifdef SEAMLESS_VID_RESTART_TEST
-	void vid_restart_stub()
-	{
-		// R_ResizeWindow
-		utils::hook::call<void(__cdecl)()>(0x6B7E10)();
-	}
-
-	void vid_restart_post_stub()
-	{
-
-		// R_ResizeWindow
-		//utils::hook::call<void(__cdecl)()>(0x6B7E10)(); // calling it here "fixes" ui but mouse is still fucked and so is aspectratio
-
-		// CL_SetupViewport
-		utils::hook::call<void(__cdecl)()>(0x481F70)();
-
-		// setting resizeWindow to true will trigger the logic in 'check_reset' below (running in 'R_IssueRenderCommands')
-		//game::sp::dx->resizeWindow = true;
-
-		const auto ui = reinterpret_cast<game::uiInfo_s*>(0x256AA50);
-		utils::hook::call<void(__cdecl)(int* width, int* height, float* aspect)>(0x4B3720)(&ui->uiDC.screenWidth, &ui->uiDC.screenHeight, &ui->uiDC.screenAspect);
-		ui->uiDC.bias = (ui->uiDC.screenWidth * 480 <= ui->uiDC.screenHeight * 640) ? 0.0f : (static_cast<std::float_t>(ui->uiDC.screenWidth) - static_cast<std::float_t>(ui->uiDC.screenHeight) * 1.3333334f) * 0.5f;
-
-		/*const auto clsvid = reinterpret_cast<game::vidConfig_t*>(0x2EE750C);
-		const auto vid = reinterpret_cast<game::vidConfig_t*>(0x3966148);
-
-		const auto scr_full_unsave = reinterpret_cast<game::ScreenPlacement*>(0xC78E90);
-		const auto scr_full = reinterpret_cast<game::ScreenPlacement*>(0xC78E18);
-		const auto scr_view = reinterpret_cast<game::ScreenPlacement*>(0xC78DA0);*/
-
-		/*game::sp::gfxCmdBufSourceState->sceneViewport.width = (int)vid->displayWidth;
-		game::sp::gfxCmdBufSourceState->sceneViewport.height = (int)vid->displayHeight;
-		game::sp::gfxCmdBufState->viewport.width = (int)vid->displayWidth;
-		game::sp::gfxCmdBufState->viewport.height = (int)vid->displayHeight;*/
-
-		//game::sp::gfxCmdBufSourceState->renderTargetWidth = (int)vid->displayWidth;
-		//game::sp::gfxCmdBufSourceState->renderTargetHeight = (int)vid->displayHeight;
-		//game::sp::dx->windows->width = (int)vid->displayWidth;
-		//game::sp::dx->windows->height = (int)vid->displayHeight;
-
-		/*game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.cullViewInfo.sceneViewport.width = (int)vid->displayWidth;
-		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.cullViewInfo.sceneViewport.height = (int)vid->displayHeight;
-		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.cullViewInfo.displayViewport.width = (int)vid->displayWidth;
-		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.cullViewInfo.displayViewport.height = (int)vid->displayHeight;
-		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.cullViewInfo.scissorViewport.width = (int)vid->displayWidth;
-		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.cullViewInfo.scissorViewport.height = (int)vid->displayHeight;*/
-
-		/*game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.s1.sceneViewport.width = (int)vid->displayWidth;
-		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.s1.sceneViewport.height = (int)vid->displayHeight;
-		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.s1.displayViewport.width = (int)vid->displayWidth;
-		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.s1.displayViewport.height = (int)vid->displayHeight;
-		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.s1.scissorViewport.width = (int)vid->displayWidth;
-		game::sp::gfxCmdBufSourceState->u.input.data->viewInfo->u0.s1.scissorViewport.height = (int)vid->displayHeight;*/
-
-		// R_RecoverLostDevice
-		//utils::hook::call<void(__cdecl)()>(0x6B89C0)();
-	}
-
-	int check_reset()
-	{
-		if (game::sp::dx->resizeWindow)
-		{
-			utils::hook::call<void(__cdecl)()>(0x6B88C0)(); // R_ReleaseLostDeviceAssets
-			utils::hook::call<void(__cdecl)()>(0x6B70C0)(); // R_ReleaseForShutdownOrReset
-
-			// R_RecoverLostDevice
-			const auto ret = utils::hook::call<bool(__cdecl)()>(0x6B89C0)();
-
-			// never reaching the point that R_RecoverLostDevice returns true because the reset fails
-			// game crashes in a worker thread before
-			if (ret)
-			{
-				game::sp::dx->resizeWindow = false;
-			}
-
-			//utils::hook::call<void(__cdecl)()>(0x658F70)(); // R_WaitFrontendWorkerCmds
-			utils::hook::call<void(__cdecl)()>(0x47E3E0)(); // safely flush all workers
-
-			if (game::sp::gfx_buf->skinnedCacheLockAddr)
-			{
-				game::sp::gfx_buf->skinnedCacheLockAddr = 0;
-
-				// R_ToggleSmpFrame
-				utils::hook::call<void(__cdecl)()>(0x6D5AC0)();
-			}
-
-			return 0;
-		}
-
-		return 1;
-	}
-
-	__declspec(naked) void r_issuerendercmds_stub()
-	{
-		const static uint32_t skip_addr = 0x6D5938;
-		const static uint32_t retn_addr = 0x6D58A0;
-		__asm
-		{
-			pushad;
-			call	check_reset;
-			cmp		eax, 1;
-			je		OG_LOGIC;
-
-			popad;
-			jmp		skip_addr;
-
-		OG_LOGIC:
-			popad;
-			// og
-			mov[ecx + 0x16CF14], eax;
-			jmp		retn_addr;
-		}
-	}
-#endif
-
 
 	void rb_renderthread_stub()
 	{
@@ -641,7 +525,6 @@ namespace components::sp
 	int forcelod_get_lod(const int lod_count)
 	{
 		const auto& r_forceLod = game::sp::Dvar_FindVar("r_forceLod");
-		//const auto& r_warm_static = game::sp::Dvar_FindVar("r_warm_static");
 
 		if (r_forceLod->current.integer > lod_count // force lowest possible LOD
 			|| (r_forceLod->current.integer >= lod_count)) // force second lowest possible LOD
@@ -696,43 +579,6 @@ namespace components::sp
 		}
 	}
 
-	void main_module::setup_sky_image(game::GfxImage* skyimg)
-	{
-		if (!main_module::m_sky_texture)
-		{
-			if (skyimg && skyimg->texture.cubemap)
-			{
-				const auto dev = game::sp::dx->device;
-
-				D3DSURFACE_DESC desc;
-				skyimg->texture.cubemap->GetLevelDesc(0, &desc);
-
-				// create texture with same desc
-				dev->CreateTexture(desc.Width, desc.Height, 1, desc.Usage, desc.Format, desc.Pool, &main_module::m_sky_texture, nullptr);
-
-				D3DLOCKED_RECT lockedRect1;
-				skyimg->texture.cubemap->LockRect(D3DCUBEMAP_FACE_POSITIVE_X, 0, &lockedRect1, nullptr, 0);
-
-				IDirect3DSurface9* cube_surf;
-				skyimg->texture.cubemap->GetCubeMapSurface(D3DCUBEMAP_FACE_POSITIVE_X, 0, &cube_surf);
-
-				IDirect3DSurface9* sky_surf;
-				main_module::m_sky_texture->GetSurfaceLevel(0, &sky_surf);
-
-
-				dev->UpdateSurface(cube_surf, nullptr, sky_surf, NULL);
-
-				//dev->StretchRect(cube_surf, nullptr, sky_surf, nullptr, D3DTEXF_LINEAR);
-
-				cube_surf->Release();
-				sky_surf->Release();
-				skyimg->texture.cubemap->UnlockRect(D3DCUBEMAP_FACE_POSITIVE_X, 0);
-				//RECT sourceRect;
-				//dev->UpdateSurface(&lockedRect, &sourceRect, sky_surf, NULL);
-			}
-		}
-	}
-
 	void ui_3d_render_to_texture(game::GfxViewInfo* view)
 	{
 		if (!view->isMissileCamera)
@@ -760,12 +606,6 @@ namespace components::sp
 			game::sp::R_SetRenderTargetSize(game::sp::gfxCmdBufSourceState, 22);
 			game::sp::R_SetRenderTarget(game::sp::gfxCmdBufSourceState, game::sp::gfxCmdBufState, game::R_RENDERTARGET_MISSILE_CAM);
 		}
-
-		//// R_UI3D_SetupTextureWindow (we need to scale Y * 2 because its rendered at 1024x512 and it doesnt auto fit the screen)
-		//utils::hook::call<void(__cdecl)(int window_index, float x, float y, float w, float h)>(0x6E21B0)(0, 0.0f, 0.0f, 1.0f, 2.0f);
-
-		//// RB_UI3D_RenderToTexture
-		//utils::hook::call<void(__cdecl)(const void* cmds, game::GfxUI3DBackend* rbUI3D, game::GfxCmdBufInput* input)>(0x6E26A0)(view->cmds, &view->rbUI3D, &view->input);
 	}
 
 	void __declspec(naked) RB_UI3D_RenderToTexture_stub()
@@ -882,20 +722,6 @@ namespace components::sp
 		mat.technique = mat.current_technique;
 		mat.technique_type = type;
 
-		//if (utils::starts_with(mat.current_material->info.name, "mc/mtl_p_zom_iceberg"))
-		//{
-		//	// semantic 2
-		//	for (auto i = 0; i < mat.current_material->textureCount; i++)
-		//	{
-		//		if (const auto m = &mat.current_material->textureTable[i];
-		//			m && m->semantic == 2 && m->u.image && m->u.image->texture.basemap)
-		//		{
-		//			game::sp::dx->device->SetTexture(0, m->u.image->texture.basemap);
-		//			break;
-		//		}
-		//	}
-		//}
-
 		if (state->material->info.sortKey == 5)
 		{
 			// maptype 5 = cube
@@ -954,14 +780,6 @@ namespace components::sp
 		if (((DWORD)drawSurf.fields.objectId & 0x780000) == 0 && (mat.current_material->info.gameFlags & 8) != 0)
 		{
 			return 0; // do not render the bsp skybox
-
-			//const auto skyimg = reinterpret_cast<game::GfxImage**>(0x408930C);
-			//game::sp::dx->device->SetTexture(0, skyimg[0]->texture.basemap);
-
-			/*if (main_module::m_sky_texture)
-			{
-				game::sp::dx->device->SetTexture(0, main_module::m_sky_texture);
-			}*/
 		}
 
 		state->origTechType = state->techType;
@@ -1261,14 +1079,6 @@ namespace components::sp
 	{
 		map_settings::get()->set_settings_for_loaded_map();
 		rtx::set_dvar_defaults();
-
-		if (main_module::m_sky_texture)
-		{
-			main_module::m_sky_texture->Release();
-			main_module::m_sky_texture = nullptr;
-		}
-
-		//fixed_function::fixed_function::last_valid_sky_texture = nullptr;
 	}
 
 	// > fixed_function::free_fixed_function_buffers_stub
@@ -1280,7 +1090,7 @@ namespace components::sp
 			main_module::m_sky_texture = nullptr;
 		}
 
-		//fixed_function::fixed_function::last_valid_sky_texture = nullptr;
+		fixed_function::fixed_function::last_valid_sky_texture = nullptr;
 	}
 
 	main_module::main_module()
@@ -1350,28 +1160,6 @@ namespace components::sp
 		// crashing snd func
 		//utils::hook::nop(0x5DA453, 5);
 #endif
-
-
-#ifdef SEAMLESS_VID_RESTART_TEST
-		// vid restart tries
-		utils::hook::set<BYTE>(0x6EB28F, 0xEB);
-		utils::hook::nop(0x6B7E01, 2); // do not sleep in R_CheckResizeWindow
-		utils::hook::nop(0x6EBF14, 5); // do not call 'RB_SwapBuffers' in RB_RenderThread
-
-		// do not call 'R_ResizeWindow' in RB_SwapBuffers
-		utils::hook::set<BYTE>(0x6EB24C, 0xEB);
-		utils::hook::nop(0x6EB20D, 2);
-
-		utils::hook(0x5B52B8, vid_restart_stub, HOOK_CALL).install()->quick(); // vid_restart
-		utils::hook(0x5B52DA, vid_restart_post_stub, HOOK_CALL).install()->quick(); // vid_restart
-
-		utils::hook(0x5D2F2C, vid_restart_stub, HOOK_CALL).install()->quick(); // vid_restart_complete
-		utils::hook(0x5D2F4B, vid_restart_post_stub, HOOK_CALL).install()->quick(); // vid_restart_complete
-
-		utils::hook::nop(0x6D589A, 6);
-		utils::hook(0x6D589A, r_issuerendercmds_stub, HOOK_JUMP).install()->quick(); // R_IssueRenderCommands
-#endif
-
 
 		// RB_RenderThread :: stub placed onto 'Sys_StopRenderer'
 		utils::hook(0x6EBE84, rb_renderthread_stub, HOOK_CALL).install()->quick();

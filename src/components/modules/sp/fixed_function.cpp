@@ -34,6 +34,146 @@ namespace components::sp
 
 	static IDirect3DVertexBuffer9* dynamic_codemesh_vb = nullptr;
 
+
+	// #
+	// general functions
+
+	void fixed_function::build_worldmatrix_for_object(float (*mtx)[4], const float* quat, const float* origin, const float scale)
+	{
+		float model_axis[3][3] = {};
+		utils::unit_quat_to_axis(quat, model_axis);
+
+		mtx[0][0] = model_axis[0][0] * scale;
+		mtx[0][1] = model_axis[0][1] * scale;
+		mtx[0][2] = model_axis[0][2] * scale;
+		mtx[0][3] = 0.0f;
+
+		mtx[1][0] = model_axis[1][0] * scale;
+		mtx[1][1] = model_axis[1][1] * scale;
+		mtx[1][2] = model_axis[1][2] * scale;
+		mtx[1][3] = 0.0f;
+
+		mtx[2][0] = model_axis[2][0] * scale;
+		mtx[2][1] = model_axis[2][1] * scale;
+		mtx[2][2] = model_axis[2][2] * scale;
+		mtx[2][3] = 0.0f;
+
+		mtx[3][0] = origin[0];
+		mtx[3][1] = origin[1];
+		mtx[3][2] = origin[2];
+		mtx[3][3] = 1.0f;
+	}
+
+	void fixed_function::build_worldmatrix_for_object(float(*mtx)[4], float(*model_axis)[3], const float* origin, const float scale)
+	{
+		mtx[0][0] = model_axis[0][0] * scale;
+		mtx[0][1] = model_axis[0][1] * scale;
+		mtx[0][2] = model_axis[0][2] * scale;
+		mtx[0][3] = 0.0f;
+
+		mtx[1][0] = model_axis[1][0] * scale;
+		mtx[1][1] = model_axis[1][1] * scale;
+		mtx[1][2] = model_axis[1][2] * scale;
+		mtx[1][3] = 0.0f;
+
+		mtx[2][0] = model_axis[2][0] * scale;
+		mtx[2][1] = model_axis[2][1] * scale;
+		mtx[2][2] = model_axis[2][2] * scale;
+		mtx[2][3] = 0.0f;
+
+		mtx[3][0] = origin[0];
+		mtx[3][1] = origin[1];
+		mtx[3][2] = origin[2];
+		mtx[3][3] = 1.0f;
+	}
+
+	// Fixes boats, ice bergs on eg. zombie_coast - anything using sw4 dual blend
+	// returns TRUE if surface was rendered
+	bool fixed_function::render_sw4_dual_blend(const game::GfxCmdBufState* state, const game::XSurface* surf, std::uint32_t vertex_offset)
+	{
+		const auto dev = game::sp::dx->device;
+
+		if (state->material
+			&& state->material->textureCount > 3
+			&& state->material->u_techset.techniqueSet
+			&& state->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(state->techType)]
+			&& state->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(state->techType)]->name
+			&& std::string_view(state->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(state->techType)]->name).starts_with("pimp_technique_ra")) // pimp_technique_radiant
+		{
+			struct pimp_tech_s
+			{
+				game::GfxImage* img = nullptr;
+				game::GfxImage* alpha_img = nullptr;
+			};
+
+			pimp_tech_s multipass_texture_maps = {};
+
+			for (auto i = state->material->textureCount - 1; i > 0; i--)
+			{
+				if (const auto m = &state->material->textureTable[i];
+					m && m->semantic == 2 && m->u.image && m->u.image->texture.basemap)
+				{
+					if (std::string_view(m->u.image->name).back() == 'c')
+					{
+						if (std::string_view(m->u.image->name).contains("alpha"))
+						{
+							multipass_texture_maps.alpha_img = m->u.image;
+
+							// only break if both textures are found
+							if (multipass_texture_maps.img && multipass_texture_maps.alpha_img)
+							{
+								break;
+							}
+						}
+
+						multipass_texture_maps.img = m->u.image;
+
+						// in case we get the alpha layer before the base layer
+						if (multipass_texture_maps.img && multipass_texture_maps.alpha_img)
+						{
+							break;
+						}
+					}
+				}
+			}
+
+			if (multipass_texture_maps.img)
+			{
+				// draw base layer 
+				game::sp::dx->device->SetTexture(0, multipass_texture_maps.img->texture.basemap);
+				dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, vertex_offset, surf->triCount);
+			}
+
+			// TODO: draw blend layer with proper blending ..
+
+			// if alpha - doesnt work rn
+			//if (multipass_texture_maps.alpha_img)
+			//{
+			//	// enable blending
+			//	dev->SetRenderState(D3DRS_ALPHABLENDENABLE, 1);
+
+			//	// set alpha as base color
+			//	game::sp::dx->device->SetTexture(0, multipass_texture_maps.alpha_img->texture.basemap);
+
+			//	// set alpha as second stage alpha
+			//	dev->SetTexture(1, multipass_texture_maps.alpha_img->texture.basemap);
+			//	dev->SetTextureStageState(1, D3DTSS_ALPHAARG1, D3DTA_CURRENT);
+			//	dev->SetTextureStageState(1, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
+			//	dev->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+
+			//	// draw alpha adjusted second layer
+			//	dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, drawstream->localSurf->vertCount, offset, drawstream->localSurf->triCount);
+
+			//	// disable blending
+			//	dev->SetRenderState(D3DRS_ALPHABLENDENABLE, 0);
+			//}
+
+			return true;
+		}
+
+		return false;
+	}
+
 	// *
 	// static models (rigid)
 
@@ -193,26 +333,7 @@ namespace components::sp
 			const auto inst = &draw_inst[*((std::uint16_t*)&smodel_list->primDrawSurfPos + index)];
 
 			float mtx[4][4] = {};
-			const auto scale = inst->placement.scale;
-			mtx[0][0] = inst->placement.axis[0][0] * scale;
-			mtx[0][1] = inst->placement.axis[0][1] * scale;
-			mtx[0][2] = inst->placement.axis[0][2] * scale;
-			mtx[0][3] = 0.0f;
-
-			mtx[1][0] = inst->placement.axis[1][0] * scale;
-			mtx[1][1] = inst->placement.axis[1][1] * scale;
-			mtx[1][2] = inst->placement.axis[1][2] * scale;
-			mtx[1][3] = 0.0f;
-
-			mtx[2][0] = inst->placement.axis[2][0] * scale;
-			mtx[2][1] = inst->placement.axis[2][1] * scale;
-			mtx[2][2] = inst->placement.axis[2][2] * scale;
-			mtx[2][3] = 0.0f;
-
-			mtx[3][0] = inst->placement.origin[0];
-			mtx[3][1] = inst->placement.origin[1];
-			mtx[3][2] = inst->placement.origin[2];
-			mtx[3][3] = 1.0f;
+			fixed_function::build_worldmatrix_for_object(&mtx[0], &inst->placement.axis[0], inst->placement.origin, inst->placement.scale);
 
 			dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
 
@@ -248,6 +369,8 @@ namespace components::sp
 			jmp		retn_addr;
 		}
 	}
+
+	
 
 	void R_DrawXModelRigidModelSurf(game::XSurface* unused_surf [[maybe_unused]], game::GfxCmdBufSourceState* source [[maybe_unused]], game::GfxCmdBufState* state)
 	{
@@ -295,71 +418,20 @@ namespace components::sp
 
 			if (state->material->textureTable && state->material->textureTable->u.image)
 			{
-				// replace sky texture with something else if we failed to switch to a proper skybox in r_set_material
-				//if (state->material->textureTable->u.image->mapType == 5)
-				//{
-				//	if (const auto identity = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_IDENTITY_NORMAL_MAP];
-				//			identity && identity->texture.basemap)
-				//	{
-				//		// reduce rapid sky switching on some maps?
-				//		if (fixed_function::last_valid_sky_texture)
-				//		{
-				//			game::sp::dx->device->SetTexture(0, fixed_function::last_valid_sky_texture);
-				//		}
-				//		else
-				//		{
-				//			game::sp::dx->device->SetTexture(0, identity->texture.basemap);
-				//		}
-				//	}
-				//}
-				//else
+				// non cubemap images or cubemaps that were replaced with kowloon clouds
 				if (state->material->textureTable->u.image->mapType != 5)
 				{
-					// non cubemap images or cubemaps that were replaced with kowloon
 					game::sp::dx->device->SetTexture(0, state->material->textureTable->u.image->texture.basemap);
 					fixed_function::last_valid_sky_texture = state->material->textureTable->u.image->texture.basemap;
 				}
-
-				/*main_module::setup_sky_image(state->material->textureTable->u.image);
-				if (main_module::m_sky_texture)
-				{
-					game::sp::dx->device->SetTexture(0, main_module::m_sky_texture);
-				}*/
 			}
-			/*if (const auto skyimg = reinterpret_cast<game::GfxImage**>(0x408930C); skyimg[0] && skyimg[0]->texture.basemap)
-			{
-				game::sp::dx->device->SetTexture(0, skyimg[0]->texture.basemap);
-			}*/
 		}
 
 		// #
 		// build world matrix
 
-		float model_axis[3][3] = {};
-		utils::unit_quat_to_axis(saved_gfxmodel->placement.base.quat, model_axis);
-
 		float mtx[4][4] = {};
-		const auto scale = saved_gfxmodel->placement.scale;
-
-		mtx[0][0] = model_axis[0][0] * scale * custom_scalar;
-		mtx[0][1] = model_axis[0][1] * scale * custom_scalar;
-		mtx[0][2] = model_axis[0][2] * scale * custom_scalar;
-		mtx[0][3] = 0.0f;
-
-		mtx[1][0] = model_axis[1][0] * scale * custom_scalar;
-		mtx[1][1] = model_axis[1][1] * scale * custom_scalar;
-		mtx[1][2] = model_axis[1][2] * scale * custom_scalar;
-		mtx[1][3] = 0.0f;
-
-		mtx[2][0] = model_axis[2][0] * scale * custom_scalar;
-		mtx[2][1] = model_axis[2][1] * scale * custom_scalar;
-		mtx[2][2] = model_axis[2][2] * scale * custom_scalar;
-		mtx[2][3] = 0.0f;
-
-		mtx[3][0] = saved_gfxmodel->placement.base.origin[0];
-		mtx[3][1] = saved_gfxmodel->placement.base.origin[1];
-		mtx[3][2] = saved_gfxmodel->placement.base.origin[2];
-		mtx[3][3] = 1.0f;
+		fixed_function::build_worldmatrix_for_object(&mtx[0], saved_gfxmodel->placement.base.quat, saved_gfxmodel->placement.base.origin, saved_gfxmodel->placement.scale * custom_scalar);
 
 		if (surf->vb0)
 		{
@@ -474,92 +546,7 @@ namespace components::sp
 #endif
 	}
 
-	// Fixes boats, ice bergs on eg. zombie_coast - anything using sw4 dual blend
-	// returns TRUE if surface was rendered
-	bool fixed_function::render_sw4_dual_blend(const game::GfxCmdBufState* state, const game::XSurface* surf, std::uint32_t vertex_offset)
-	{
-		const auto dev = game::sp::dx->device;
-
-		if (   state->material
-			&& state->material->textureCount > 3
-			&& state->material->u_techset.techniqueSet 
-			&& state->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(state->techType)] 
-			&& state->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(state->techType)]->name
-			&& std::string_view(state->material->u_techset.techniqueSet->techniques[static_cast<std::uint8_t>(state->techType)]->name).starts_with("pimp_technique_ra")) // pimp_technique_radiant
-		{
-			struct pimp_tech_s
-			{
-				game::GfxImage* img = nullptr;
-				game::GfxImage* alpha_img = nullptr;
-			};
-
-			pimp_tech_s multipass_texture_maps = {};
-
-			for (auto i = state->material->textureCount - 1; i > 0; i--)
-			{
-				if (const auto m = &state->material->textureTable[i];
-					m && m->semantic == 2 && m->u.image && m->u.image->texture.basemap)
-				{
-					if (std::string_view(m->u.image->name).back() == 'c')
-					{
-						if (std::string_view(m->u.image->name).contains("alpha"))
-						{
-							multipass_texture_maps.alpha_img = m->u.image;
-
-							// only break if both textures are found
-							if (multipass_texture_maps.img && multipass_texture_maps.alpha_img)
-							{
-								break;
-							}
-						}
-
-						multipass_texture_maps.img = m->u.image;
-
-						// in case we get the alpha layer before the base layer
-						if (multipass_texture_maps.img && multipass_texture_maps.alpha_img)
-						{
-							break;
-						}
-					}
-				}
-			}
-
-			if (multipass_texture_maps.img)
-			{
-				// draw base layer 
-				game::sp::dx->device->SetTexture(0, multipass_texture_maps.img->texture.basemap);
-				dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, vertex_offset, surf->triCount);
-			}
-
-			// TODO: draw blend layer with proper blending ..
-
-			// if alpha - doesnt work rn
-			//if (multipass_texture_maps.alpha_img)
-			//{
-			//	// enable blending
-			//	dev->SetRenderState(D3DRS_ALPHABLENDENABLE, 1);
-
-			//	// set alpha as base color
-			//	game::sp::dx->device->SetTexture(0, multipass_texture_maps.alpha_img->texture.basemap);
-
-			//	// set alpha as second stage alpha
-			//	dev->SetTexture(1, multipass_texture_maps.alpha_img->texture.basemap);
-			//	dev->SetTextureStageState(1, D3DTSS_ALPHAARG1, D3DTA_CURRENT);
-			//	dev->SetTextureStageState(1, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
-			//	dev->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
-
-			//	// draw alpha adjusted second layer
-			//	dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, drawstream->localSurf->vertCount, offset, drawstream->localSurf->triCount);
-
-			//	// disable blending
-			//	dev->SetRenderState(D3DRS_ALPHABLENDENABLE, 0);
-			//}
-
-			return true;
-		}
-
-		return false;
-	}
+	
 
 	// ------------------------
 
@@ -696,33 +683,11 @@ namespace components::sp
 		// #
 		// build world matrix
 
-		float model_axis[3][3] = {};
-		utils::unit_quat_to_axis(is_skinned_vert ? src->skinnedPlacement.base.quat : skinned_surf->placement.base.quat /*src->objectPlacement->base.quat*/, model_axis);
-
-		//const auto mtx = source->matrices.matrix[0].m;
 		float mtx[4][4] = {};
-		const auto scale = is_skinned_vert ? src->skinnedPlacement.scale : skinned_surf->placement.scale /*src->objectPlacement->scale*/;
-
-		// inlined ikMatrixSet44
-		mtx[0][0] = model_axis[0][0] * scale;
-		mtx[0][1] = model_axis[0][1] * scale;
-		mtx[0][2] = model_axis[0][2] * scale;
-		mtx[0][3] = 0.0f;
-
-		mtx[1][0] = model_axis[1][0] * scale;
-		mtx[1][1] = model_axis[1][1] * scale;
-		mtx[1][2] = model_axis[1][2] * scale;
-		mtx[1][3] = 0.0f;
-
-		mtx[2][0] = model_axis[2][0] * scale;
-		mtx[2][1] = model_axis[2][1] * scale;
-		mtx[2][2] = model_axis[2][2] * scale;
-		mtx[2][3] = 0.0f;
-
-		mtx[3][0] = is_skinned_vert ? src->skinnedPlacement.base.origin[0] : skinned_surf->placement.base.origin[0]; //src->objectPlacement->base.origin[0];
-		mtx[3][1] = is_skinned_vert ? src->skinnedPlacement.base.origin[1] : skinned_surf->placement.base.origin[1]; //src->objectPlacement->base.origin[1];
-		mtx[3][2] = is_skinned_vert ? src->skinnedPlacement.base.origin[2] : skinned_surf->placement.base.origin[2]; //src->objectPlacement->base.origin[2];
-		mtx[3][3] = 1.0f;
+		fixed_function::build_worldmatrix_for_object(&mtx[0], 
+			is_skinned_vert ? src->skinnedPlacement.base.quat : skinned_surf->placement.base.quat, 
+			is_skinned_vert ? src->skinnedPlacement.base.origin : skinned_surf->placement.base.origin,
+			is_skinned_vert ? src->skinnedPlacement.scale : skinned_surf->placement.scale);
 
 		if (dvars::r_showTess && dvars::r_showTess->current.enabled)
 		{
@@ -770,17 +735,6 @@ namespace components::sp
 		const auto surf = draw_stream->localSurf;
 		const auto start_index = R_SetIndexData(&state->prim, surf->triIndices, surf->triCount);
 
-		/*if (!surf->deformed && surf->custom_vertexbuffer)
-		{
-			if (state->prim.streams[0].vb != surf->custom_vertexbuffer || state->prim.streams[0].offset != 0 || state->prim.streams[0].stride != MODEL_VERTEX_STRIDE)
-			{
-				state->prim.streams[0].vb = surf->custom_vertexbuffer;
-				state->prim.streams[0].offset = 0;
-				state->prim.streams[0].stride = MODEL_VERTEX_STRIDE;
-				state->prim.device->SetStreamSource(0, surf->custom_vertexbuffer, 0, MODEL_VERTEX_STRIDE);
-			}
-		}
-		else*/
 		{
 			if ((int)(MODEL_VERTEX_STRIDE * surf->vertCount + game::sp::gfx_buf->dynamicVertexBuffer->used) > game::sp::gfx_buf->dynamicVertexBuffer->total)
 			{
@@ -796,35 +750,34 @@ namespace components::sp
 				//game::Com_Error(game::ERR_DROP, "Fatal lock error :: R_DrawXModelSkinnedUncached");
 				__debugbreak();
 			}
+			
+			for (auto i = 0u; i < surf->vertCount; i++)
 			{
-				for (auto i = 0u; i < surf->vertCount; i++)
-				{
-					// packed source vertex
-					const auto src_vert = surf->verts0[i];
+				// packed source vertex
+				const auto src_vert = surf->verts0[i];
 
-					// position of our unpacked vert within the vertex buffer
-					const auto v_pos_in_buffer = i * MODEL_VERTEX_STRIDE;
-					const auto v = reinterpret_cast<unpacked_model_vert*>(((DWORD)buffer_data + v_pos_in_buffer));
+				// position of our unpacked vert within the vertex buffer
+				const auto v_pos_in_buffer = i * MODEL_VERTEX_STRIDE;
+				const auto v = reinterpret_cast<unpacked_model_vert*>(((DWORD)buffer_data + v_pos_in_buffer));
 
-					// vert pos
-					v->pos[0] = src_vert.xyz[0];
-					v->pos[1] = src_vert.xyz[1];
-					v->pos[2] = src_vert.xyz[2];
+				// vert pos
+				v->pos[0] = src_vert.xyz[0];
+				v->pos[1] = src_vert.xyz[1];
+				v->pos[2] = src_vert.xyz[2];
 
-					// unpack and assign vert normal
+				// unpack and assign vert normal
 
-					// normal unpacking in a cod4 hlsl shader:
-					// temp0	 = i.normal * float4(0.007874016, 0.007874016, 0.007874016, 0.003921569) + float4(-1, -1, -1, 0.7529412);
-					// temp0.xyz = temp0.www * temp0;
+				// normal unpacking in a cod4 hlsl shader:
+				// temp0	 = i.normal * float4(0.007874016, 0.007874016, 0.007874016, 0.003921569) + float4(-1, -1, -1, 0.7529412);
+				// temp0.xyz = temp0.www * temp0;
 
-					const auto scale = static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[3])) * (1.0f / 255.0f) + 0.7529412f;
-					v->normal[0] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[0])) * (1.0f / 127.0f) + -1.0f) * scale;
-					v->normal[1] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[1])) * (1.0f / 127.0f) + -1.0f) * scale;
-					v->normal[2] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[2])) * (1.0f / 127.0f) + -1.0f) * scale;
+				const auto scale = static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[3])) * (1.0f / 255.0f) + 0.7529412f;
+				v->normal[0] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[0])) * (1.0f / 127.0f) + -1.0f) * scale;
+				v->normal[1] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[1])) * (1.0f / 127.0f) + -1.0f) * scale;
+				v->normal[2] = (static_cast<float>(static_cast<std::uint8_t>(src_vert.normal.array[2])) * (1.0f / 127.0f) + -1.0f) * scale;
 
-					// uv's
-					game::sp::Vec2UnpackTexCoords(src_vert.texCoord.packed, v->texcoord);
-				}
+				// uv's
+				game::sp::Vec2UnpackTexCoords(src_vert.texCoord.packed, v->texcoord);
 			}
 
 			game::sp::gfx_buf->dynamicVertexBuffer->buffer->Unlock();
@@ -859,28 +812,7 @@ namespace components::sp
 				const auto inst = &game::sp::rgp->world->dpvs.smodelDrawInsts[draw_stream->smodelList[index]];
 
 				float mtx[4][4] = {};
-				const auto scale = src->skinnedPlacement.scale;
-
-				// inlined ikMatrixSet44
-				mtx[0][0] = inst->placement.axis[0][0] * scale;
-				mtx[0][1] = inst->placement.axis[0][1] * scale;
-				mtx[0][2] = inst->placement.axis[0][2] * scale;
-				mtx[0][3] = 0.0f;
-
-				mtx[1][0] = inst->placement.axis[1][0] * scale;
-				mtx[1][1] = inst->placement.axis[1][1] * scale;
-				mtx[1][2] = inst->placement.axis[1][2] * scale;
-				mtx[1][3] = 0.0f;
-
-				mtx[2][0] = inst->placement.axis[2][0] * scale;
-				mtx[2][1] = inst->placement.axis[2][1] * scale;
-				mtx[2][2] = inst->placement.axis[2][2] * scale;
-				mtx[2][3] = 0.0f;
-
-				mtx[3][0] = inst->placement.origin[0];
-				mtx[3][1] = inst->placement.origin[1];
-				mtx[3][2] = inst->placement.origin[2];
-				mtx[3][3] = 1.0f;
+				fixed_function::build_worldmatrix_for_object(&mtx[0], &inst->placement.axis[0], inst->placement.origin, src->skinnedPlacement.scale);
 
 				if (dvars::r_showTess && dvars::r_showTess->current.enabled)
 				{
@@ -937,7 +869,6 @@ namespace components::sp
 		world_mtx.m[1][1] = 1.0f;
 		world_mtx.m[2][2] = 1.0f;
 		world_mtx.m[3][3] = 1.0f;
-
 		dev->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&world_mtx.m[0]));
 
 		// texture alpha + vertex alpha (decal blending)
@@ -1158,7 +1089,6 @@ namespace components::sp
 		dev->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
 		dev->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
 
-		//dev->SetStreamSource(0, gfx_world_vertexbuffer, WORLD_VERTEX_STRIDE * tris->firstVertex, WORLD_VERTEX_STRIDE);
 		state->device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, tris->vertexCount, baseIndex, triCount);
 	}
 
@@ -1190,12 +1120,10 @@ namespace components::sp
 			for (auto index = 0u; index < count; ++index)
 			{
 				const auto bsp_surf = &game::sp::rgp->world->dpvs.surfaces[list[index]];
-				//if (base_vertex != bsp_surf->tris.firstVertex || base_index + 3u * tri_count != static_cast<unsigned>(bsp_surf->tris.baseIndex))
 				if (base_vertex != bsp_surf->tris.firstVertex || tri_count + base_index + 2 * tri_count != static_cast<unsigned>(bsp_surf->tris.baseIndex))
 				{
 					if (prev_tris)
 					{
-						//const auto base = R_SetIndexData(state, &game::sp::rgp->world->draw.indices[prev_tris->baseIndex], tri_count);
 						const auto base = R_SetIndexData(state, &game::sp::get_g_world_draw()->indices[prev_tris->baseIndex], tri_count);
 						if (base < 0)
 						{
@@ -1371,13 +1299,13 @@ namespace components::sp
 		prim->device->SetPixelShader(nullptr);
 
 		// vertices are already in 'world space' so origin is at 0 0 0
-		float mtx[4][4] = {};
-		mtx[0][0] = 1.0f; mtx[0][1] = 0.0f; mtx[0][2] = 0.0f; mtx[0][3] = 0.0f;
-		mtx[1][0] = 0.0f; mtx[1][1] = 1.0f; mtx[1][2] = 0.0f; mtx[1][3] = 0.0f;
-		mtx[2][0] = 0.0f; mtx[2][1] = 0.0f; mtx[2][2] = 1.0f; mtx[2][3] = 0.0f;
-		mtx[3][0] = 0.0f; mtx[3][1] = 0.0f; mtx[3][2] = 0.0f; mtx[3][3] = 1.0f;
+		game::GfxMatrix world_mtx = {};
+		world_mtx.m[0][0] = 1.0f;
+		world_mtx.m[1][1] = 1.0f;
+		world_mtx.m[2][2] = 1.0f;
+		world_mtx.m[3][3] = 1.0f;
+		prim->device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&world_mtx.m[0]));
 
-		prim->device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
 
 #if !USE_NEW_FX_SYS // old way
 
