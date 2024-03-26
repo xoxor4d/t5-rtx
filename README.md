@@ -24,12 +24,12 @@ only compatible with sp (including [game_mod](https://github.com/Nukem9/LinkerMo
 #### A. Easy way but might not feature the latest and greatest:
   1) Download the latest [release](https://github.com/xoxor4d/t5-rtx/releases) and extract the contents into your CoD:BO1 root directory.  
   
-  2) Download the latest release of [asi-loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases) (non-x64)  
+  2) (Optional - _file is included_) Download the latest release of [asi-loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases) (non-x64)  
   and extract the dll that comes with it (probably `dinput8.dll`) into your CoD:BO1 root directory. 
   
-  3) Rename the extracted dll file (probably `dinput8.dll`) to `DSOUND.dll`.
+  3) (^) Rename the extracted dll file (probably `dinput8.dll`) to `DSOUND.dll`.
 
-  4) Start the game. The in-game console or the game window itself should show `t5-rtx-version` if the asi was loaded correctly
+  4) Start the game. The in-game console or the game window itself should show `t5-rtx-version` if the .asi was loaded correctly
 
   5) Read the `Dvars / Console Commands` and `Current issues` sections
 
@@ -74,6 +74,7 @@ remix runtime - https://github.com/NVIDIAGameWorks/dxvk-remix/actions
 	- following numbers `(within brackets)` are cells that will always be rendered when in the cell defined above
 
 - B. Commandline Arguments:  
+  - `-no_rtx` :: disable fixed function rendering
   - `-stock_effects` :: render effects using shaders
   - `-no_sun` :: disable directional light spawning (mapsettings)
   - `-no_fog` :: disable fog (mapsettings)

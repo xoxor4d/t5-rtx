@@ -491,8 +491,9 @@ namespace components::sp
 		utils::hook::nop(0x74784D, 2);
 		utils::hook::set<BYTE>(0x74785A, 0xEB); // ^
 
-		// ^ scene ents (curtain on theater) 
+		// ^ scene ents (curtain on theater - spawned map markers (script models))
 		utils::hook::nop(0x747618, 2);
+		utils::hook::set<BYTE>(0x747648, 0xEB); // ^
 
 #if 0
 		{

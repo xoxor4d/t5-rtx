@@ -1763,62 +1763,65 @@ namespace components::sp
 		utils::hook(0x6C806A, add_znear_depthhack_stub, HOOK_JUMP).install()->quick();
 #endif
 
-		// enable fullbright by default
-		utils::hook::set<BYTE>(0x6CA3E0 + 1, 0x1);
-
-		// fixed-function rendering of static models (R_TessStaticModelRigidDrawSurfList)
-		utils::hook(0x7495B7, R_DrawStaticModelDrawSurfNonOptimized, HOOK_CALL).install()->quick();
-
-		// #
-		// fixed-function rendering of rigid xmodels 
-		utils::hook(0x74AFC9, save_gfxmodel_for_R_DrawXModelRigidModelSurf, HOOK_JUMP).install()->quick(); // save GfxModelRigidSurface* for R_DrawXModelRigidModelSurf
-		utils::hook(0x74B0B7, R_DrawXModelRigidModelSurf, HOOK_CALL).install()->quick(); // eg. viewmodel gun
-
-		// #
-		// fixed-function rendering of skinned (animated) models (R_TessXModelSkinnedDrawSurfList)
-		utils::hook::nop(0x73C977, 6);
-		utils::hook(0x73C977, R_DrawXModelSkinnedUncached_stub, HOOK_JUMP).install()->quick(); // eg. viewmodel hands
-
-		// ^ rigid skinned (only very few models) - doesnt render? (R_TessXModelRigidSkinnedDrawSurfList)
-		utils::hook::nop(0x73DFAA, 6);
-		utils::hook(0x73DFAA, R_DrawXModelSkinnedUncached_stub2, HOOK_JUMP).install()->quick();
-
-		// #
-		// TODO fixed-function rendering of static skinned models
-		utils::hook(0x749F6A, R_DrawStaticModelsSkinnedDrawSurf, HOOK_CALL).install()->quick();
-
-		// #
-		// fixed-function rendering of world surfaces (R_TessTrianglesPreTessList)
-		utils::hook(0x73EC45, R_DrawBspDrawSurfsPreTess, HOOK_CALL).install()->quick(); // r_pretess 1
-		utils::hook(0x73EA98, R_DrawBspDrawSurfs, HOOK_CALL).install()->quick(); // r_pretess 0 (without surface batching)
-
-		// #
-		// fixed-function rendering of brushmodels
-		utils::hook(0x73EC60, R_TessBModel, HOOK_JUMP).install()->quick();
-
-
-		// hook beginning of 'RB_Draw3DInternal' - not of use rn
-		utils::hook::nop(0x6D2EC6, 6); utils::hook(0x6D2EC6, rb_draw3d_internal_stub, HOOK_JUMP).install()->quick();
-
-		//utils::hook(0x6C61DA, copy_fx_buffer, HOOK_CALL).install()->quick();
-
-		// fixed-function effects
-		if (!flags::has_flag("stock_effects"))
+		if (!flags::has_flag("no_rtx"))
 		{
-			//utils::hook::set<BYTE>(0x73D70F + 5, MAX_EFFECT_VERTS_FOR_HOOK); // change max verts from 0x4000 to 0x1000 
-			utils::hook::nop(0x73A668, 5); // R_UpdateVertexDecl
-			utils::hook::nop(0x73A759, 5); // R_SetStreamSource
-			utils::hook(0x73A634, R_TessCodeMeshList_begin_stub, HOOK_JUMP).install()->quick();
-			utils::hook(0x73A8FE, R_TessCodeMeshList_end_stub, HOOK_JUMP).install()->quick();
+			// enable fullbright by default
+			utils::hook::set<BYTE>(0x6CA3E0 + 1, 0x1);
+
+			// fixed-function rendering of static models (R_TessStaticModelRigidDrawSurfList)
+			utils::hook(0x7495B7, R_DrawStaticModelDrawSurfNonOptimized, HOOK_CALL).install()->quick();
+
+			// #
+			// fixed-function rendering of rigid xmodels 
+			utils::hook(0x74AFC9, save_gfxmodel_for_R_DrawXModelRigidModelSurf, HOOK_JUMP).install()->quick(); // save GfxModelRigidSurface* for R_DrawXModelRigidModelSurf
+			utils::hook(0x74B0B7, R_DrawXModelRigidModelSurf, HOOK_CALL).install()->quick(); // eg. viewmodel gun
+
+			// #
+			// fixed-function rendering of skinned (animated) models (R_TessXModelSkinnedDrawSurfList)
+			utils::hook::nop(0x73C977, 6);
+			utils::hook(0x73C977, R_DrawXModelSkinnedUncached_stub, HOOK_JUMP).install()->quick(); // eg. viewmodel hands
+
+			// ^ rigid skinned (only very few models) - doesnt render? (R_TessXModelRigidSkinnedDrawSurfList)
+			utils::hook::nop(0x73DFAA, 6);
+			utils::hook(0x73DFAA, R_DrawXModelSkinnedUncached_stub2, HOOK_JUMP).install()->quick();
+
+			// #
+			// TODO fixed-function rendering of static skinned models
+			utils::hook(0x749F6A, R_DrawStaticModelsSkinnedDrawSurf, HOOK_CALL).install()->quick();
+
+			// #
+			// fixed-function rendering of world surfaces (R_TessTrianglesPreTessList)
+			utils::hook(0x73EC45, R_DrawBspDrawSurfsPreTess, HOOK_CALL).install()->quick(); // r_pretess 1
+			utils::hook(0x73EA98, R_DrawBspDrawSurfs, HOOK_CALL).install()->quick(); // r_pretess 0 (without surface batching)
+
+			// #
+			// fixed-function rendering of brushmodels
+			utils::hook(0x73EC60, R_TessBModel, HOOK_JUMP).install()->quick();
+
+
+			// hook beginning of 'RB_Draw3DInternal' - not of use rn
+			utils::hook::nop(0x6D2EC6, 6); utils::hook(0x6D2EC6, rb_draw3d_internal_stub, HOOK_JUMP).install()->quick();
+
+			//utils::hook(0x6C61DA, copy_fx_buffer, HOOK_CALL).install()->quick();
+
+			// fixed-function effects
+			if (!flags::has_flag("stock_effects"))
+			{
+				//utils::hook::set<BYTE>(0x73D70F + 5, MAX_EFFECT_VERTS_FOR_HOOK); // change max verts from 0x4000 to 0x1000 
+				utils::hook::nop(0x73A668, 5); // R_UpdateVertexDecl
+				utils::hook::nop(0x73A759, 5); // R_SetStreamSource
+				utils::hook(0x73A634, R_TessCodeMeshList_begin_stub, HOOK_JUMP).install()->quick();
+				utils::hook(0x73A8FE, R_TessCodeMeshList_end_stub, HOOK_JUMP).install()->quick();
+			}
+
+			// ----
+
+			// on map load :: build custom buffers for fixed-function rendering
+			utils::hook(0x64FEAD, init_fixed_function_buffers_stub, HOOK_JUMP).install()->quick(); // CG_Init :: CG_NorthDirectionChanged call
+			utils::hook(0x727D2A, XSurfaceOptimizeRigid_stub, HOOK_JUMP).install()->quick(); // stock XSurfaceOptimize :: XSurfaceOptimizeRigid call
+
+			// on renderer shutdown :: release custom buffers used by fixed-function rendering
+			utils::hook(0x6B8456, free_fixed_function_buffers_stub, HOOK_JUMP).install()->quick(); // R_Shutdown :: R_ResetModelLighting call
 		}
-
-		// ----
-
-		// on map load :: build custom buffers for fixed-function rendering
-		utils::hook(0x64FEAD, init_fixed_function_buffers_stub, HOOK_JUMP).install()->quick(); // CG_Init :: CG_NorthDirectionChanged call
-		utils::hook(0x727D2A, XSurfaceOptimizeRigid_stub, HOOK_JUMP).install()->quick(); // stock XSurfaceOptimize :: XSurfaceOptimizeRigid call
-
-		// on renderer shutdown :: release custom buffers used by fixed-function rendering
-		utils::hook(0x6B8456, free_fixed_function_buffers_stub, HOOK_JUMP).install()->quick(); // R_Shutdown :: R_ResetModelLighting call
 	}
 }

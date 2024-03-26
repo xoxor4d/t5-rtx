@@ -1003,7 +1003,7 @@ namespace components::sp
 			if (game::sp::DB_FileExists("xcommon_rtx", game::DB_PATH_ZONE))
 			{
 				info[i].name = "xcommon_rtx";
-				info[i].allocFlags = 256;
+				info[i].allocFlags = 0x4000000; // patch_override flag
 				info[i].freeFlags = 0;
 				++i;
 			}
@@ -1041,7 +1041,7 @@ namespace components::sp
 			&& game::sp::DB_FileExists("xcommon_rtx", game::DB_PATH_ZONE))
 		{
 			info[i].name = "xcommon_rtx";
-			info[i].allocFlags = 256;
+			info[i].allocFlags = 0x4000000; // patch_override flag
 			info[i].freeFlags = 0;
 			++i;
 		}
@@ -1172,13 +1172,19 @@ namespace components::sp
 		utils::hook(0x6EBE84, rb_renderthread_stub, HOOK_CALL).install()->quick();
 
 
+
 		// fixes effects - calls RB_UpdateDynamicBuffers before R_IssueRenderCommands
 		// - RB_UpdateDynamicBuffers is normally called from within RB_RenderThread (not active with r_smp_backend 0)
 		// - now called from the main thread before calling R_IssueRenderCommands
 		utils::hook(0x7A18AA, fix_dynamic_buffers, HOOK_CALL).install()->quick();
 
+		// R_CreateDynamicBuffers :: increase tempskinbuffer (x2 - was 0x800000)
+		utils::hook::set(0x709865 + 1, 0x1000000);
+		utils::hook::set(0x6C9FB3 + 2, 0x1000000); // cmp max size in temp skinning func (warning)
 
-		// no longer needed
+
+
+		// no longer needed ?
 		utils::hook::nop(0x6C7973, 5); // Sys_WaitWorkerCmdInternal - fx_marks_draw
 		//utils::hook::nop(0x6C61D2, 5); // Sys_WaitWorkerCmdInternal - fx_draw
 
