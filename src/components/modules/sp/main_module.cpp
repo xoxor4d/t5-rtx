@@ -741,6 +741,18 @@ namespace components::sp
 			}
 		}
 
+		// do not render shader based eye layer (sw4 texture) 
+		if (   mat.current_material->info.gameFlags == 16u
+			&& mat.current_material->textureCount == 3
+			&& static_cast<std::uint8_t>(mat.current_material->info.sortKey) == 43u
+			&& static_cast<std::uint8_t>(mat.current_material->stateFlags) == 17u)
+		{
+			if (std::string_view(mat.current_material->info.name).contains("mc/mtl_gen_eye_"))
+			{
+				return 0;
+			}
+		}
+
 		if (!mat.switch_material && !mat.switch_technique && !mat.switch_technique_type)
 		{
 			if (state->origMaterial)
@@ -1100,6 +1112,15 @@ namespace components::sp
 		}
 	}
 
+	//void RB_Draw3D_stub()
+	//{
+	//	// RB_DrawComposites
+	//	utils::hook::call<void(__cdecl)()>(0x740C30)();
+
+	//	// RB_Draw3D
+	//	utils::hook::call<void(__cdecl)()>(0x6EB760)();
+	//}
+
 	main_module::main_module()
 	{
 		// rb_fullbrightdrawcommands :: call RB_UI3D_RenderToTexture to update the main menu 3d hud (tv)
@@ -1182,7 +1203,8 @@ namespace components::sp
 		utils::hook::set(0x709865 + 1, 0x1000000);
 		utils::hook::set(0x6C9FB3 + 2, 0x1000000); // cmp max size in temp skinning func (warning)
 
-
+		// composite testing
+		//utils::hook(0x6D5908, RB_Draw3D_stub, HOOK_CALL).install()->quick();
 
 		// no longer needed ?
 		utils::hook::nop(0x6C7973, 5); // Sys_WaitWorkerCmdInternal - fx_marks_draw
