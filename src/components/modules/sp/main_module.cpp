@@ -362,6 +362,7 @@ namespace components::sp
 		dvars::bool_override("r_shaderWarming", false);
 		dvars::bool_override("sm_enable", false);
 
+		dvars::bool_override("r_enablePlayerShadow", true);
 		dvars::bool_override("r_smp_worker", true);
 		dvars::bool_override("r_multiGpu", false); // newest rtx (rr) crashes on init 
 
@@ -1135,6 +1136,37 @@ namespace components::sp
 	//	utils::hook::call<void(__cdecl)()>(0x6EB760)();
 	//}
 
+	void cg_player_stub(game::DObj* obj, void* pose, unsigned int entnum, unsigned int renderFxFlags, float* lightingOrigin, float materialTime, float materialTime2, float burnFraction, float wetness, char altXModel, int textureOverrideIndex, void* dobjConstantSet, void* dobjConstantSetExtraCam, int lightingOriginToleranceSq, float scale)
+	{
+		int tex_override = -1;
+
+		if (const auto var = game::sp::Dvar_FindVar("zombietron"); var && !var->current.enabled)
+		{
+			if (const auto	material = Material_RegisterHandle("mtl_rtx_playershadow"); material
+				&& material->textureTable
+				&& material->textureTable->u.image
+				&& material->textureTable->u.image->name
+				&& !std::string_view(material->textureTable->u.image->name)._Equal("default"))
+			{
+				int model_hash = 1337;
+				for (auto i = 0u; i < static_cast<std::uint8_t>(obj->numModels); i++)
+				{
+					//int R_AllocTextureOverride(Material *material, unsigned __int16 modelIndexMask, GfxImage *img1, GfxImage *img2, int prevOverride)
+					tex_override = utils::hook::call<int(__cdecl)(game::Material*, std::uint16_t, game::GfxImage*, game::GfxImage*, int)>(0x6BFBD0)
+						(material, model_hash, material->textureTable->u.image, material->textureTable[1].u.image, i == 0 ? -1 : tex_override);
+					model_hash += 2;
+				}
+
+				//auto x = game::sp::get_frontenddata_out();
+				//obj->hidePartBits[3] = 0x0002ffff;
+			}
+		}
+
+		// R_AddDObjToScene
+		utils::hook::call<void(__cdecl)(game::DObj*, void*, unsigned int, unsigned int, float*, float, float, float, float, char, int, void*, void*, int, float)>(0x6BFDF0)
+			(obj, pose, entnum, renderFxFlags, lightingOrigin, materialTime, materialTime2, burnFraction, wetness, altXModel, tex_override, dobjConstantSet, dobjConstantSetExtraCam, lightingOriginToleranceSq, scale);
+	}
+
 	main_module::main_module()
 	{
 		// rb_fullbrightdrawcommands :: call RB_UI3D_RenderToTexture to update the main menu 3d hud (tv)
@@ -1292,6 +1324,12 @@ namespace components::sp
 		// #
 		// implement r_forcelod logic for skinned models (R_SkinXModel)
 		utils::hook(0x523BD8, XModelGetLodForDist_stub, HOOK_JUMP).install()->quick();
+
+
+		// #
+		// playermodel shadow
+		utils::hook::set<BYTE>(0x67F88C, 0xEB); // render 3rd person model
+		utils::hook(0x67FA19, cg_player_stub, HOOK_CALL).install()->quick(); // set unique texture for all parts of the model incl. gun 
 
 
 		// #

@@ -171,6 +171,24 @@ namespace components::sp
 		return false;
 	}
 
+	void apply_texture_overrides(const game::GfxModelSkinnedSurface* surf, const game::GfxCmdBufSourceState* source, const game::GfxCmdBufState* state [[maybe_unused]] )
+	{
+		const auto dev = game::sp::dx->device;
+		if (surf && surf->info.gfxEntIndex)
+		{
+ 			if (const auto idx = source->u.input.data->gfxEnts[surf->info.gfxEntIndex].textureOverrideIndex;
+				idx != -1)
+			{
+				if (source->u.input.data->textureOverrides[idx].dobjModelMask != 0xffff
+					&& (static_cast<std::uint16_t>((1 << surf->info.dobjModelIndex)) & source->u.input.data->textureOverrides[idx].dobjModelMask) != 0
+					&& source->u.input.data->textureOverrides[idx].img2)
+				{
+					dev->SetTexture(0, source->u.input.data->textureOverrides[idx].img2->texture.basemap);
+				}
+			}
+		}
+	}
+
 	// *
 	// static models (rigid)
 
@@ -367,8 +385,6 @@ namespace components::sp
 		}
 	}
 
-	
-
 	void R_DrawXModelRigidModelSurf(game::XSurface* unused_surf [[maybe_unused]], game::GfxCmdBufSourceState* source [[maybe_unused]], game::GfxCmdBufState* state)
 	{
 		if (!saved_gfxmodel || !state->material || !state->material->info.name)
@@ -450,6 +466,8 @@ namespace components::sp
 		
 		// #
 		// draw prim
+
+		apply_texture_overrides(&saved_gfxmodel->surf, source, state); // player shadow
 
 		if (current_material_name == std::string_view("mc/mtl_p_rus_security_monitor_extracam"))
 		{
@@ -686,6 +704,12 @@ namespace components::sp
 
 		// vertex format
 		state->prim.device->SetFVF(MODEL_VERTEX_FORMAT); 
+
+
+		if (is_skinned_vert)
+		{
+			apply_texture_overrides(&skinned_surf->surf, src, state); // player shadow
+		}
 
 
 		// #

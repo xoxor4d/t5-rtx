@@ -1907,6 +1907,39 @@ namespace game
 		void* physConstraints; // PhysConstraints
 	};
 
+	struct DSkelPartBits
+	{
+		int anim[5];
+		int control[5];
+		int skel[5];
+	};
+
+	struct DSkel
+	{
+		DSkelPartBits partBits;
+		int timeStamp;
+		DObjAnimMat* mat;
+	};
+
+	struct DObj
+	{
+		void* localTree;
+		unsigned __int16 duplicateParts;
+		unsigned __int16 entnum;
+		char duplicatePartsSize;
+		char numModels;
+		char numBones;
+		unsigned int ignoreCollision;
+		volatile int locked;
+		DSkel skel;
+		float radius;
+		unsigned int hidePartBits[5];
+		char localClientIndex;
+		char flags;
+		char* ikState;
+		XModel** models;
+	};
+
 	struct GfxStaticModelDrawInst
 	{
 		float cullDist;
