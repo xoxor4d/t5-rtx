@@ -310,6 +310,20 @@ namespace components::sp
 		}
 	}
 
+	// add_dobj_skin_cmd_stub
+	__declspec(naked) void add_dobj_skin_cmd_stub()
+	{
+		const static uint32_t func_addr = 0x6CA150;
+		const static uint32_t retn_addr = 0x6E2B64;
+		__asm
+		{
+			// hook replaced one push so we have to sub 4 from esp
+			lea     eax, [esp + 8 - 4];
+			call	func_addr;
+			jmp		retn_addr;
+		}
+	}
+
 	__declspec(naked) void fx_draw_cmd_stub()
 	{
 		const static uint32_t func_addr = 0x60B390;
@@ -1243,6 +1257,13 @@ namespace components::sp
 		//utils::hook::nop(0x6C74F5, 6);
 		//utils::hook(0x6C74F5, add_sceneent_cmd_stub, HOOK_JUMP).install()->quick();
 		//utils::hook::nop(0x6C7515, 3); // add esp, 0xC
+
+		// fix random skinned model rendering order (caused smearing artifacts) by not using delayed skinning 
+		// (R_AddDObjToScene -> CG_PredictiveSkinCEntity -> Add Worker CMD)
+		// not sure whats different compared to older cods .. might just be the threading issues in bo1
+		// https://github.com/NVIDIAGameWorks/rtx-remix/issues/450
+		utils::hook::nop(0x6E2B50, 6);
+		utils::hook(0x6E2B50, add_dobj_skin_cmd_stub, HOOK_JUMP).install()->quick();
 
 		// 60B390 -  FX_GenerateVerts
 		utils::hook::nop(0x6E2A43, 5);
