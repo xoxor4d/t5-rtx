@@ -606,6 +606,12 @@ namespace components::sp
 
 	void R_DrawXModelSkinnedUncached(game::GfxModelRigidSurface* skinned_surf, game::GfxCmdBufSourceState* src, game::GfxCmdBufState* state, int is_skinned_vert)
 	{
+		/*++fixed_function::m_unique_skinned_mesh_identifier;
+		if (is_skinned_vert && fixed_function::m_unique_skinned_mesh_identifier != 33)
+		{
+			return;
+		}*/
+
 		// fixed function rendering
 
 		const auto surf = skinned_surf->surf.xsurf;
@@ -691,15 +697,25 @@ namespace components::sp
 			is_skinned_vert ? src->skinnedPlacement.base.origin : skinned_surf->placement.base.origin,
 			is_skinned_vert ? src->skinnedPlacement.scale : skinned_surf->placement.scale);
 
-		if (dvars::r_showTess && dvars::r_showTess->current.enabled && dvars::r_showTess->current.integer <= 2)
-		{
-			main_module::RB_ShowTess(src, state, &mtx[3][0], "XMSkin", game::COLOR_WHITE);
-		}
-
 		// set world matrix
 		state->prim.device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&mtx));
 		state->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, start_index, surf->triCount);
 		state->prim.device->SetFVF(NULL);
+
+		// skinned vertices have the world transform baked in and 'skinnedPlacement.base.origin' holds the player origin
+		// so use the first vertex position as the origin of the debug string
+		if (is_skinned_vert)
+		{
+			mtx[3][0] += skinned_surf->surf.u.skinnedVert[0].xyz[0];
+			mtx[3][1] += skinned_surf->surf.u.skinnedVert[0].xyz[1];
+			mtx[3][2] += skinned_surf->surf.u.skinnedVert[0].xyz[2];
+		}
+
+		if (dvars::r_showTess && dvars::r_showTess->current.enabled && dvars::r_showTess->current.integer <= 2
+			&& dvars::r_showTessSkin && dvars::r_showTessSkin->current.enabled)
+		{
+			main_module::RB_ShowTess(src, state, &mtx[3][0], "XMSkin", game::COLOR_WHITE);
+		}
 	}
 
 	__declspec(naked) void R_DrawXModelSkinnedUncached_stub()

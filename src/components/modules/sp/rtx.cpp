@@ -26,6 +26,8 @@ namespace components::sp
 		// needed for skysphere
 		dev->SetRenderState(D3DRS_LIGHTING, FALSE);
 
+		fixed_function::m_unique_skinned_mesh_identifier = 0;
+
 		rtx::force_dvars_on_frame();
 
 		if (!flags::has_flag("no_fog"))
@@ -142,6 +144,12 @@ namespace components::sp
 			/* default	*/ 0,
 			/* flags	*/ game::dvar_flags::none,
 			/* desc		*/ "surface data info");
+
+		dvars::r_showTessSkin = game::sp::Dvar_RegisterBool(
+			/* name		*/ "r_showTessSkin",
+			/* default	*/ false,
+			/* flags	*/ game::dvar_flags::none,
+			/* desc		*/ "show skinned surface info");
 
 		dvars::r_showTessDist = game::sp::Dvar_RegisterFloat(
 			/* name		*/ "r_showTessDist",

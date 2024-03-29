@@ -20,6 +20,8 @@ namespace components::sp
 
 		static inline std::vector<vb_vert_range_s> modified_vertices_list;
 
+		static inline std::uint32_t m_unique_skinned_mesh_identifier = 0;
+
 		static void build_worldmatrix_for_object(float (*mtx)[4], const float* quat, const float* origin, const float scale);
 		static void build_worldmatrix_for_object(float (*mtx)[4], float(*model_axis)[3], const float* origin, const float scale);
 		static bool render_sw4_dual_blend(const game::GfxCmdBufState* state, const game::XSurface* surf, std::uint32_t vertex_offset);

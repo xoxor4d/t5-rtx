@@ -2076,7 +2076,7 @@ namespace game
 
 	struct GfxModelSurfaceInfo
 	{
-		void* baseMat; // DObjAnimMat
+		DObjAnimMat* baseMat;
 		char boneIndex;
 		char boneCount;
 		unsigned __int16 gfxEntIndex;
