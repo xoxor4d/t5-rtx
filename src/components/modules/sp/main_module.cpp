@@ -1328,7 +1328,7 @@ namespace components::sp
 
 		// #
 		// playermodel shadow
-		utils::hook::set<BYTE>(0x67F88C, 0xEB); // render 3rd person model
+		utils::hook::set<BYTE>(0x6C18EC, 0xEB); // render 3rd person model (R_AddDObjSurfacesCamera)
 		utils::hook(0x67FA19, cg_player_stub, HOOK_CALL).install()->quick(); // set unique texture for all parts of the model incl. gun 
 
 
