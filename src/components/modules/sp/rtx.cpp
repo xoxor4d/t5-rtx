@@ -154,10 +154,10 @@ namespace components::sp
 
 		dvars::r_showTessDist = game::sp::Dvar_RegisterFloat(
 			/* name		*/ "r_showTessDist",
-			/* default	*/ 1000.0f,
+			/* default	*/ 400.0f,
 			/* min		*/ 0.0f,
 			/* max		*/ 10000.0f,
-			/* flags	*/ game::dvar_flags::none,
+			/* flags	*/ game::dvar_flags::saved,
 			/* desc		*/ "radius in which to draw r_showTess debug strings");
 
 		dvars::r_showCellIndex = game::sp::Dvar_RegisterBool(
