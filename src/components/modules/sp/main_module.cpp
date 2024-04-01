@@ -595,6 +595,16 @@ namespace components::sp
 		}
 	}
 
+	__declspec(naked) void reduce_playerheight_for_shadow_stub()
+	{
+		const static uint32_t retn_addr = 0x67F573;
+		__asm
+		{
+			subss   xmm0, ds:main_module::m_reduce_playerheight_for_shadow;
+			jmp		retn_addr;
+		}
+	}
+
 	void ui_3d_render_to_texture(game::GfxViewInfo* view)
 	{
 		if (!view->isMissileCamera)
@@ -1159,6 +1169,10 @@ namespace components::sp
 
 				//auto x = game::sp::get_frontenddata_out();
 				//obj->hidePartBits[3] = 0x0002ffff;
+				
+				// G_SpawnItem for hidepartbits logic
+				//game::sp::g_entities->attachModelNames[0];
+				//game::sp::G_EntDetachAll(game::sp::g_entities);
 			}
 		}
 
@@ -1329,6 +1343,7 @@ namespace components::sp
 		// #
 		// playermodel shadow
 		utils::hook::set<BYTE>(0x6C18EC, 0xEB); // render 3rd person model (R_AddDObjSurfacesCamera)
+		utils::hook::nop(0x67F56B, 8); utils::hook(0x67F56B, reduce_playerheight_for_shadow_stub, HOOK_JUMP).install()->quick(); //utils::hook::set<BYTE>(0x67F550, 0xEB); // do not reduce height of 3rd person playermodel (CG_Player)
 		utils::hook(0x67FA19, cg_player_stub, HOOK_CALL).install()->quick(); // set unique texture for all parts of the model incl. gun 
 
 

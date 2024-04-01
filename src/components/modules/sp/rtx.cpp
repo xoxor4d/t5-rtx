@@ -27,6 +27,7 @@ namespace components::sp
 		dev->SetRenderState(D3DRS_LIGHTING, FALSE);
 
 		fixed_function::m_unique_skinned_mesh_identifier = 0;
+		//main_module::m_reduce_playerheight_for_shadow = 0.0f;
 
 		rtx::force_dvars_on_frame();
 

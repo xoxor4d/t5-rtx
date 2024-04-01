@@ -17,6 +17,8 @@ namespace components::sp
 		static void RB_ShowTess(game::GfxCmdBufSourceState* source, game::GfxCmdBufState* state, const float* center, const char* name, const float* color);
 		static inline IDirect3DTexture9* m_sky_texture = nullptr;
 
+		static inline float m_reduce_playerheight_for_shadow = 0.0f;
+
 	private:
 		static inline bool noborder_active = false;
 		static inline int noborder_titlebar_height = 0;
