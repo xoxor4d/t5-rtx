@@ -179,8 +179,10 @@ namespace components::sp
  			if (const auto idx = source->u.input.data->gfxEnts[surf->info.gfxEntIndex].textureOverrideIndex;
 				idx != -1)
 			{
-				if (source->u.input.data->textureOverrides[idx].dobjModelMask != 0xffff
-					&& (static_cast<std::uint16_t>((1 << surf->info.dobjModelIndex)) & source->u.input.data->textureOverrides[idx].dobjModelMask) != 0
+				const auto mask = source->u.input.data->textureOverrides[idx].dobjModelMask;
+				if (mask != 0xffff
+					//&& (static_cast<std::uint16_t>((1 << surf->info.dobjModelIndex)) & source->u.input.data->textureOverrides[idx].dobjModelMask) != 0
+					&& mask >= 1337 && mask < 1400
 					&& source->u.input.data->textureOverrides[idx].img2)
 				{
 					dev->SetTexture(0, source->u.input.data->textureOverrides[idx].img2->texture.basemap);
