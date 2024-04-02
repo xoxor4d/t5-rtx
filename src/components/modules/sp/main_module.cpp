@@ -1094,7 +1094,7 @@ namespace components::sp
 	{
 		// Com_LoadLevelFastFiles - would normally call 'Com_LoadCommonFastFile' ^ hooked and loads xcommon_rtx
 		// Com_LoadLevelFastFiles is entirely detoured in game_mod so we have to load our fastfile afterwards
-		utils::hook::call<void(__cdecl)(const char*)>(0x4C8890)(map_name);
+		//utils::hook::call<void(__cdecl)(const char*)>(0x4C8890)(map_name);
 
 		//if (game::is_game_mod)
 		{
@@ -1113,6 +1113,8 @@ namespace components::sp
 				utils::hook::call<void(__cdecl)(game::XZoneInfo*, std::uint32_t, int)>(0x631B10)(&info, 1, 0);
 			}
 		}
+
+		utils::hook::call<void(__cdecl)(const char*)>(0x4C8890)(map_name);
 	}
 
 	// *
