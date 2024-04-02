@@ -2,7 +2,7 @@
 
 // use separate vertexbuffer for effects (instead of the dynamic vertex buffer the game uses for a lot of other things)
 // improves fx performance quite a bit
-#define USE_NEW_FX_SYS 0
+#define USE_NEW_FX_SYS 1
 
 using namespace game::sp;
 
@@ -31,6 +31,22 @@ namespace components::sp
 	constexpr auto WORLD_VERTEX_STRIDE = 36u;
 	constexpr auto WORLD_VERTEX_FORMAT = (D3DFVF_XYZ | D3DFVF_NORMAL | D3DFVF_DIFFUSE | D3DFVF_TEX1);
 	IDirect3DVertexBuffer9* gfx_world_vertexbuffer = nullptr;
+
+
+	// #
+
+	struct unpacked_fx_vert
+	{
+		game::vec3_t pos;
+		unsigned int color;
+		game::vec2_t texcoord;
+		game::vec2_t unused;
+	};
+
+	// we need the vertex color for alpha blending so we have to get rid of normal (not needed)
+	// D3DFVF_TEX2 is there to get us to a stride of 32, so that we dont have to create our own indexbuffer (because og. verts are 32 in size)
+	constexpr auto FX_VERTEX_STRIDE = 32u;
+	constexpr auto FX_VERTEX_FORMAT = (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1 | D3DFVF_TEX2);
 
 	// #
 	// general functions
@@ -171,7 +187,7 @@ namespace components::sp
 		return false;
 	}
 
-	void apply_texture_overrides(const game::GfxModelSkinnedSurface* surf, const game::GfxCmdBufSourceState* source, const game::GfxCmdBufState* state [[maybe_unused]] )
+	bool apply_texture_overrides(const game::GfxModelSkinnedSurface* surf, const game::GfxCmdBufSourceState* source, const game::GfxCmdBufState* state [[maybe_unused]] )
 	{
 		const auto dev = game::sp::dx->device;
 		if (surf && surf->info.gfxEntIndex)
@@ -186,9 +202,12 @@ namespace components::sp
 					&& source->u.input.data->textureOverrides[idx].img2)
 				{
 					dev->SetTexture(0, source->u.input.data->textureOverrides[idx].img2->texture.basemap);
+					return true;
 				}
 			}
 		}
+
+		return false;
 	}
 
 	// *
@@ -469,9 +488,9 @@ namespace components::sp
 		// #
 		// draw prim
 
-		apply_texture_overrides(&saved_gfxmodel->surf, source, state); // player shadow
+		const bool has_texture_overrides = apply_texture_overrides(&saved_gfxmodel->surf, source, state); // player shadow
 
-		if (current_material_name == std::string_view("mc/mtl_p_rus_security_monitor_extracam"))
+		if (current_material_name._Equal("mc/mtl_p_rus_security_monitor_extracam"))
 		{
 			// extracam is currently rendered from player pov
 			if (const auto extracam_rt = reinterpret_cast<game::GfxRenderTarget*>(0x45EB3A0); 
@@ -490,7 +509,7 @@ namespace components::sp
 #endif
 
 		// tv with anim
-		if (current_material_name == std::string_view("mc/mtl_bink_4x4"))
+		if (current_material_name._Equal("mc/mtl_bink_4x4"))
 		{
 			if (const auto cinematic_y = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_CINEMATIC_Y];
 				cinematic_y && cinematic_y->texture.basemap)
@@ -525,8 +544,8 @@ namespace components::sp
 			}
 		}
 
-		if (current_material_name == std::string_view("mc/mtl_ui3d_0") 
-			|| current_material_name == std::string_view("mc/mtl_ui3d_1"))
+		if (current_material_name._Equal("mc/mtl_ui3d_0")
+			|| current_material_name._Equal("mc/mtl_ui3d_1"))
 		{
 			if (const auto ui3d_tex = game::sp::gfxCmdBufSourceState->u.input.codeImages[game::TEXTURE_SRC_CODE_UI3D];
 				ui3d_tex && ui3d_tex->texture.basemap)
@@ -541,7 +560,7 @@ namespace components::sp
 		}
 
 		const auto offset = 0;
-		if (!fixed_function::render_sw4_dual_blend(state, surf, offset))
+		if (has_texture_overrides || !fixed_function::render_sw4_dual_blend(state, surf, offset))
 		{
 			state->prim.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, surf->vertCount, offset, surf->triCount);
 		}
@@ -1322,7 +1341,7 @@ namespace components::sp
 		// #
 		// setup fixed-function
 
-		prim->device->SetFVF(MODEL_VERTEX_FORMAT);
+		prim->device->SetFVF(FX_VERTEX_FORMAT);
 
 		// def. needed or the game will render the mesh using shaders
 		prim->device->SetVertexShader(nullptr);
@@ -1336,6 +1355,10 @@ namespace components::sp
 		world_mtx.m[3][3] = 1.0f;
 		prim->device->SetTransform(D3DTS_WORLD, reinterpret_cast<D3DMATRIX*>(&world_mtx.m[0]));
 
+		// texture alpha + vertex alpha (decal blending)
+		prim->device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+		prim->device->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+		prim->device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE2X); // modulate is not enough
 
 #if !USE_NEW_FX_SYS // old way
 
@@ -1661,7 +1684,8 @@ namespace components::sp
 		// released on map shutdown - main_module::on_map_shutdown
 		if (!dynamic_codemesh_vb)
 		{
-			if (const auto hr = dev->CreateVertexBuffer(frontend_data->codeMeshPtr->vb.total, D3DUSAGE_WRITEONLY | D3DUSAGE_DYNAMIC, MODEL_VERTEX_FORMAT, D3DPOOL_DEFAULT, &dynamic_codemesh_vb, nullptr);
+			//const int additional_size_to_add = (FX_VERTEX_STRIDE - MODEL_VERTEX_STRIDE) * 0x4000;
+			if (const auto hr = dev->CreateVertexBuffer(frontend_data->codeMeshPtr->vb.total, D3DUSAGE_WRITEONLY | D3DUSAGE_DYNAMIC, FX_VERTEX_FORMAT, D3DPOOL_DEFAULT, &dynamic_codemesh_vb, nullptr);
 				hr > 0)
 			{
 				__debugbreak();
@@ -1693,35 +1717,26 @@ namespace components::sp
 				// position of vert within the vertex buffer
 				const auto v_pos_in_buffer = i * frontend_data->codeMeshPtr->vertSize; // size of GfxPackedVertex
 
-				/*if (v_pos_in_buffer > source->data->codeMesh.vb.used)
-				{
-					break;
-				}*/
-
-				// interpret GfxPackedVertex as unpacked_model_vert
-				const auto v = reinterpret_cast<unpacked_model_vert*>(((DWORD)buffer_data + v_pos_in_buffer));
+				// interpret GfxPackedVertex as unpacked_fx_vert
+				const auto v = reinterpret_cast<unpacked_fx_vert*>(((DWORD)buffer_data + v_pos_in_buffer));
 
 				// interpret GfxPackedVertex as GfxPackedVertex 
 				const auto src_vert = reinterpret_cast<game::GfxPackedVertex*>(((DWORD)og_buffer_data + v_pos_in_buffer));
-				//const auto src_vert = reinterpret_cast<game::GfxPackedVertex*>(source->u.input.data->codeMeshPtr->vb.verts)[i];
-
 
 				// vert pos
 				v->pos[0] = src_vert->xyz[0];
 				v->pos[1] = src_vert->xyz[1];
 				v->pos[2] = src_vert->xyz[2];
 
-				// normal unpacking in a cod4 hlsl shader:
-				// temp0	 = i.normal * float4(0.007874016, 0.007874016, 0.007874016, 0.003921569) + float4(-1, -1, -1, 0.7529412);
-				// temp0.xyz = temp0.www * temp0;
-
-				const auto scale = static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[3])) * (1.0f / 255.0f) + 0.7529412f;
-				v->normal[0] = (static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[0])) * (1.0f / 127.0f) + -1.0f) * scale;
-				v->normal[1] = (static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[1])) * (1.0f / 127.0f) + -1.0f) * scale;
-				v->normal[2] = (static_cast<float>(static_cast<std::uint8_t>(src_vert->normal.array[2])) * (1.0f / 127.0f) + -1.0f) * scale;
+				// packed vertex color : used for color and alpha manip.
+				v->color = src_vert->color.packed;
 
 				// uv's
 				game::sp::Vec2UnpackTexCoords(src_vert->texCoord.packed, v->texcoord);
+
+				// populate second set of texcoords, just in case
+				v->unused[0] = v->texcoord[0];
+				v->unused[1] = v->texcoord[1];
 			}
 
 			dynamic_codemesh_vb->Unlock();
