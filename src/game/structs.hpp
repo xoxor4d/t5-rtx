@@ -2456,6 +2456,14 @@ namespace game
 		int freeFlags;
 	};
 
+	enum DvarSetSource
+	{
+		DVAR_SOURCE_INTERNAL = 0x0,
+		DVAR_SOURCE_EXTERNAL = 0x1,
+		DVAR_SOURCE_SCRIPT = 0x2,
+		DVAR_SOURCE_DEVGUI = 0x3,
+	};
+
 	enum dvarType_t
 	{
 		DVAR_TYPE_BOOL = 0x0,

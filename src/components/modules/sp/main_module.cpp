@@ -1404,7 +1404,12 @@ namespace components::sp
 			utils::hook::nop(0x829B42, 5);
 
 			// restore commandline functionality
-			utils::hook::set(0x50A8C6, (PBYTE)"\x68\xD8\xD0\x76\x02", 5); 
+			utils::hook::set(0x50A8C6, (PBYTE)"\x68\xD8\xD0\x76\x02", 5);
+
+			utils::hook::set<BYTE>(0x4A3920 + 1, 0x01); // cg_fov
+
+			// Stop vanilla scripts from resetting the user's fov
+			utils::hook(0x62A0B0, dvars::Dvar_SetFromStringByName, HOOK_JUMP).install()->quick();
 		}
 
 		// *

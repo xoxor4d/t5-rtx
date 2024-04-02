@@ -55,4 +55,25 @@ namespace dvars
 			}
 		}
 	}
+
+	// https://github.com/Nukem9/LinkerMod/blob/72ee05bbf42dfb2a1893e655788b631be63ea317/components/game_mod/dvar.cpp#L161
+	game::dvar_s* Dvar_SetFromStringByNameFromSource(const char* dvarName, const char* string, game::DvarSetSource source, unsigned int flags)
+	{
+		return ((game::dvar_s * (__cdecl*)(const char*, const char*, game::DvarSetSource, unsigned int))0x00426820)(dvarName, string, source, flags);
+	}
+
+	void Dvar_SetFromStringByName(const char* dvarName, const char* string)
+	{
+		// Do not allow the default FOV to be set. Generally sent with CG_DeployServerCommand.
+		if (dvarName && string)
+		{
+			if (!_stricmp(dvarName, "cg_fov") && !_stricmp(string, "65"))
+				return;
+
+			if (!_stricmp(dvarName, "cg_default_fov") && !_stricmp(string, "65"))
+				return;
+		}
+
+		Dvar_SetFromStringByNameFromSource(dvarName, string, game::DVAR_SOURCE_INTERNAL, 0);
+	}
 }
