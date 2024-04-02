@@ -174,6 +174,14 @@ namespace components::sp
 			/* flags	*/ game::dvar_flags::saved,
 			/* desc		*/ "UV scale of water");
 
+		dvars::fx_cull_elem_draw_radius = game::sp::Dvar_RegisterFloat(
+			/* name		*/ "fx_cull_elem_draw_radius",
+			/* default	*/ 300.0f, 
+			/* min		*/ 0.0f, 
+			/* max		*/ 100000.0f,
+			/* flags	*/ game::dvar_flags::archive,
+			/* desc		*/ "fx elements inside this radius are not affected by culling (fx_cull_elem_draw)");
+
 		if (!flags::has_flag("no_forced_lod"))
 		{
 			// force lod to LOD0
@@ -319,6 +327,57 @@ namespace components::sp
 				call	R_AddWorldSurfacesPortalWalk_hk;
 				add		esp, 8;
 				jmp		retn_addr;
+			}
+		}
+
+
+		// returns true if inside radius
+		int fx_cullsphere_radius_check(const float* camera_pos, const float* fx_world_pos)
+		{
+			if (const auto var = Dvar_FindVar("fx_cull_elem_draw");
+					var && var->current.enabled)
+			{
+				const auto dist = utils::distance(fx_world_pos, camera_pos);
+
+				if (dvars::fx_cull_elem_draw_radius &&
+					dist < dvars::fx_cull_elem_draw_radius->current.value)
+				{
+					return 1;
+				}
+			}
+
+			return 0;
+		}
+
+		int fx_cullsphere_global_helper = 0;
+		__declspec(naked) void fx_cullsphere_stub()
+		{
+			const static uint32_t og_continue_addr = 0x5E6F2A;
+			const static uint32_t og_retn_addr = 0x5E6F83;
+			__asm
+			{
+				pushad;
+				mov     eax, [esp + 12 + 32];		// +32 because of pushad
+				push	eax;						// float* fx worldpos
+				mov     eax, [esp + 4 + 4 + 32];	// +32 because of pushad & +4 because of the push above
+				push	eax;						// FxCamera*
+				call	fx_cullsphere_radius_check;
+				add		esp, 8;
+				mov		fx_cullsphere_global_helper, eax;
+				popad;
+				xor		eax, eax;
+
+				cmp		fx_cullsphere_global_helper, 1;
+				je		loc_5E6F83;				// do not cull if within radius
+
+				// OG_LOGIC
+				xor		ecx, ecx;
+				test    edx, edx;
+				jbe		loc_5E6F83;
+				jmp		og_continue_addr;
+
+			loc_5E6F83:
+				jmp		og_retn_addr;
 			}
 		}
 
@@ -503,6 +562,9 @@ namespace components::sp
 		// ^ scene ents (curtain on theater - spawned map markers (script models))
 		utils::hook::nop(0x747618, 2);
 		utils::hook::set<BYTE>(0x747648, 0xEB); // ^
+
+		// hook FX_CullSphere to implement an additional radius check
+		utils::hook::nop(0x5E6F24, 6); utils::hook(0x5E6F24, cull::fx_cullsphere_stub, HOOK_JUMP).install()->quick();
 
 #if 0
 		{
