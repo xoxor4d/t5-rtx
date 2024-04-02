@@ -1154,10 +1154,9 @@ namespace components::sp
 	//	utils::hook::call<void(__cdecl)()>(0x6EB760)();
 	//}
 
-	void cg_player_stub(game::DObj* obj, void* pose, unsigned int entnum, unsigned int renderFxFlags, float* lightingOrigin, float materialTime, float materialTime2, float burnFraction, float wetness, char altXModel, int textureOverrideIndex, void* dobjConstantSet, void* dobjConstantSetExtraCam, int lightingOriginToleranceSq, float scale)
+	void cg_player_stub(game::DObj* obj, void* pose, unsigned int entnum, unsigned int renderFxFlags, float* lightingOrigin, float materialTime, float materialTime2, float burnFraction, float wetness, char altXModel, [[maybe_unused]] int textureOverrideIndex, void* dobjConstantSet, void* dobjConstantSetExtraCam, int lightingOriginToleranceSq, float scale)
 	{
 		int tex_override = -1;
-
 		if (const auto var = game::sp::Dvar_FindVar("zombietron"); var && !var->current.enabled)
 		{
 			if (const auto	material = Material_RegisterHandle("mtl_rtx_playershadow"); material
@@ -1166,7 +1165,7 @@ namespace components::sp
 				&& material->textureTable->u.image->name
 				&& !std::string_view(material->textureTable->u.image->name)._Equal("default"))
 			{
-				int model_hash = 1337;
+				std::uint16_t model_hash = 1337u;
 				for (auto i = 0u; i < static_cast<std::uint8_t>(obj->numModels); i++)
 				{
 					//int R_AllocTextureOverride(Material *material, unsigned __int16 modelIndexMask, GfxImage *img1, GfxImage *img2, int prevOverride)
@@ -1174,13 +1173,6 @@ namespace components::sp
 						(material, model_hash, material->textureTable->u.image, material->textureTable[1].u.image, i == 0 ? -1 : tex_override);
 					model_hash += 2;
 				}
-
-				//auto x = game::sp::get_frontenddata_out();
-				//obj->hidePartBits[3] = 0x0002ffff;
-				
-				// G_SpawnItem for hidepartbits logic
-				//game::sp::g_entities->attachModelNames[0];
-				//game::sp::G_EntDetachAll(game::sp::g_entities);
 			}
 		}
 
