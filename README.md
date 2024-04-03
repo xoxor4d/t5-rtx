@@ -1,11 +1,12 @@
-<h1 align="center">CoD: Black Ops rtx-remix compatibility mod</h1>
+<h2 align="center">CoD: Black Ops RTX Remix compatibility mod</h1>
 
 <div align="center" markdown="1"> 
 
-This client modification is made to make the game compatible with nvidia's [rtx-remix](https://github.com/NVIDIAGameWorks/rtx-remix).  
+This (sp) client modification is made to make the game compatible with nvidia's [rtx-remix](https://github.com/NVIDIAGameWorks/rtx-remix).  
 How? By manually reimplementing fixed function rendering :) 
 
-It does come with a sample 'rtx mod' which places a few lights and has few custom materials.  
+It does come with a [sample rtx-mod](https://drive.google.com/file/d/143dC21zbohUm31PmHf4C9sqoU-dkwzhU) which places a few lights and has few custom materials.  
+(zombie theater and the second SP level)  
 
 <br>
 
@@ -15,8 +16,6 @@ It does come with a sample 'rtx mod' which places a few lights and has few custo
 	
 ![img](img/02.jpg)
 	
-only compatible with sp (including [game_mod](https://github.com/Nukem9/LinkerMod))
-
 </div>
 
 # Usage
@@ -48,13 +47,25 @@ remix runtime - https://github.com/NVIDIAGameWorks/dxvk-remix/actions
   - Drop `t5rtx.asi` and the contents of the `assets` folder into your CoD-BO1 root directory and start the game.  
 
 <br>
+
+#### C. [Game_Mod](https://github.com/Nukem9/LinkerMod) by Nukem
+
+1) Download [this version](https://github.com/xoxor4d/LinkerMod/tags) of game_mod (gets rid of a few asserts that prevent the game from starting)
+
+2) Place `game_mod.asi` into your CoD:BO1 root directory
+
+3) Start the game. The window title should mention game_mod
+
+<br>
 <br>
 
 ## ⚠️ Current issues:
+- It is not yet possible to adjust the sky brightness from the games side.  
+You have to do that yourself via the remix runtime menu if the level is to bright / dark.
 - `vid_restart` (changing resolution / refresh rate) should generally work but might cause instability afterwards
-- main menu TV might behave odd and will be darker after a map was loaded (changing hash of TV etc)
-- there are still a few objects that wobble, indicating that they are rendered using shaders
-- like other CoD's, teleporting (fast scenery change) might crash remix
+- Main menu TV might can look a little different after a map was loaded (changing hash of TV)
+- Gun marks (fx) and particle clouds (fx) are still rendered using shaders (might wobbly a little)
+- Like other CoD's, teleporting (fast scenery changes) might crash remix
 
 <br>
 
@@ -71,7 +82,8 @@ remix runtime - https://github.com/NVIDIAGameWorks/dxvk-remix/actions
   in the `map_settings.ini` file found in `root/t5rtx`.
   - Manual culling overwrites:  
     - the number `[within square brackets]` defines the cell to be tweaked
-	- following numbers `(within brackets)` are cells that will always be rendered when in the cell defined above
+	- numbers `(within brackets)` are cells that will always be rendered when the player is in the cell defined above
+	- use dvar `r_showCellIndex` to identify cells
 
 - B. Commandline Arguments:  
   - `-no_rtx` :: disable fixed function rendering
@@ -86,9 +98,11 @@ remix runtime - https://github.com/NVIDIAGameWorks/dxvk-remix/actions
 - C. Dvars: 
     - `r_forceLod` :: force all models to a specific LOD (highest by default)
     - `r_showTess` :: show various info about surfaces (incl. materials and the images it is using)
+	- `r_showTessSkin` :: draw info for skinned meshes
 	- `r_showTessDist` :: can be used to limit the draw distance of the 3D text ^
 	- `r_showCellIndex` :: draw cell index at the center of the current cell (map settings)
 	- `rtx_water_uv_scale` :: UV scale of water
+	- `fx_cull_elem_draw_radius` :: disable frustum culling for effects within this radius around the player
 
 <br>
 
@@ -98,23 +112,28 @@ remix runtime - https://github.com/NVIDIAGameWorks/dxvk-remix/actions
 <br>
 
 ## Compiling yourself:
-1. setup `CODBO1_ROOT` environment variable with path to your CoD:BO1 directory (optional)
-2. run `generate-buildfiles_vs22.bat` to generate build files (build folder)
-3. compile and copy `t5rtx.asi` to your CoD:BO1 root folder  
+1. Setup `CODBO1_ROOT` environment variable with path to your CoD:BO1 directory (optional)
+2. Run `generate-buildfiles_vs22.bat` to generate build files (build folder)
+3. Compile and copy `t5rtx.asi` to your CoD:BO1 root folder  
    - ^ automatically happens if you setup `CODBO1_ROOT`
 
 <br>
 
 ## Questions? 
-- join the [rtx-remix showcase](https://discord.gg/j6sh7JD3v9) discord and check out the CoD Black Ops thread within the `remix-projects` channel.
-- join the [iw3xo](https://discord.gg/t5jRGbj) discord if you have questions related to this modification
-- rtx-remix: https://github.com/NVIDIAGameWorks/rtx-remix  
+- Join the [rtx-remix showcase](https://discord.gg/j6sh7JD3v9) discord and check out the CoD Black Ops thread within the `remix-projects` channel.
+- Join the [iw3xo](https://discord.gg/t5jRGbj) discord if you have questions related to this modification
+- RTX Remix: https://github.com/NVIDIAGameWorks/rtx-remix  
 
 
 <br>
 
 ## Credits
-- [people of the showcase discord](https://discord.gg/j6sh7JD3v9) (for testing, feedback and ideas)
+- [People of the showcase discord](https://discord.gg/j6sh7JD3v9) (for testing, feedback and ideas)
 - [Nukem - LinkerMod](https://github.com/Nukem9/LinkerMod)
-- [nvidia - rtx-remix](https://github.com/NVIDIAGameWorks/rtx-remix)
+- [Nvidia - RTX Remix](https://github.com/NVIDIAGameWorks/rtx-remix)
 - [Rektinator](https://github.com/RektInator)
+
+<div align="center" markdown="1">
+
+![img](img/03.jpg)
+</div>

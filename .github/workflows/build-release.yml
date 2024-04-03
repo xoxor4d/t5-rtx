@@ -54,6 +54,7 @@ jobs:
           path: |
             ./t5rtx.asi
             ./assets/
+            !./assets/*.zip 
   
   webbook:
     needs: build
