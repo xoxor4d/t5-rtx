@@ -33,6 +33,21 @@ namespace components::sp
 	IDirect3DVertexBuffer9* gfx_world_vertexbuffer = nullptr;
 
 
+
+	// #
+
+	struct decal_surf_s
+	{
+		game::vec3_t pos;
+		unsigned int color;
+		game::vec2_t texcoords;
+		game::vec2_t texcoords2;
+	};
+
+	constexpr auto WORLD_DECAL_STRIDE = 32u; //24u;
+	constexpr auto WORLD_DECAL_FORMAT = (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX2);
+	IDirect3DVertexBuffer9* decal_vertexbuffer = nullptr;
+
 	// #
 
 	struct unpacked_fx_vert
@@ -1057,6 +1072,187 @@ namespace components::sp
 		dev->SetStreamSource(0, gfx_world_vertexbuffer, WORLD_VERTEX_STRIDE * tris->firstVertex, WORLD_VERTEX_STRIDE);
 		dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, tris->vertexCount, baseIndex, triCount);
 
+		const int g_layerDataStride[] = {
+			0,0,0,8,12,16,20,24,24,28,32,32,36,40,0,0,16,0
+		};
+
+		//auto yy = state->material->textureTable[0];
+
+		if (const auto stride = g_layerDataStride[state->prim.vertDeclType]; stride)
+		{
+			DWORD og_alphablend;
+			dev->GetRenderState(D3DRS_ALPHABLENDENABLE, &og_alphablend);
+
+			IDirect3DBaseTexture9* og_tex;
+			dev->GetTexture(0, &og_tex);
+
+
+			// #
+			// update dynamic decal vb
+
+			void* decal_surface_data;
+			if (auto hr = decal_vertexbuffer->Lock(WORLD_DECAL_STRIDE * tris->firstVertex, WORLD_DECAL_STRIDE * triCount, &decal_surface_data, 0);
+				hr >= 0)
+			{
+				const auto layer_buffer = game::sp::get_g_world_draw()->vld.layerVb;
+				void* layer_surface_data;
+				if (hr = layer_buffer->Lock(tris->vertexLayerData, stride * triCount, &layer_surface_data, D3DLOCK_READONLY);
+					hr >= 0)
+				{
+					struct layer_surf_s
+					{
+						float u0;
+						float v0;
+
+						float u1;
+						float v1;
+					};
+
+					for (auto i = 0u; i < triCount; i++)
+					{
+						const auto ls = reinterpret_cast<layer_surf_s*>(((DWORD)layer_surface_data + (i * stride)));
+						const auto ds = reinterpret_cast<decal_surf_s*>(((DWORD)decal_surface_data + (i * WORLD_DECAL_STRIDE)));
+
+						ds->texcoords[0] = ls->u0;
+						ds->texcoords[1] = ls->v0;
+
+						if (stride > 8)
+						{
+							ds->texcoords2[0] = ls->u1;
+							ds->texcoords2[1] = ls->v1;
+						}
+
+						auto col = reinterpret_cast<game::GfxColor*>(&ds->color);
+						//col->array[3] = 0x9F;
+						int xxxx = 0;
+					}
+
+					layer_buffer->Unlock();
+				}
+
+				decal_vertexbuffer->Unlock();
+			}
+
+			dev->SetStreamSource(0, decal_vertexbuffer, WORLD_DECAL_STRIDE * tris->firstVertex, WORLD_DECAL_STRIDE);
+			dev->SetFVF(WORLD_DECAL_FORMAT);
+			dev->SetRenderState(D3DRS_ALPHABLENDENABLE, 1);
+
+
+			for (auto a = 0; a < state->pass->stableArgCount; a++)
+			{
+				const auto arg = state->pass->u_args.localArgs[a];
+				if (arg.type == 2 && arg.u.codeSampler == 3054311504)
+				{
+					// 2695565377 color 0
+					// 3054311504 color 1
+					// 3054311507 color 2
+
+					// 1507003663 normal 0
+					// 2486480606 normal 1
+					// 2486480605 normal 2
+
+					// 887934131 spec 0
+					// 3532022562 spec 1
+					// 3532022561 spec 2
+#if 0
+					if (!fixed_function::dynamic_decal_vb)
+					{
+						if (const auto hr = dev->CreateVertexBuffer(64, D3DUSAGE_WRITEONLY | D3DUSAGE_DYNAMIC, 0, D3DPOOL_DEFAULT, &fixed_function::dynamic_decal_vb, nullptr);
+							hr > 0)
+						{
+							__debugbreak();
+						}
+					}
+
+					bool succeeded = false;
+
+					void* dynamic_decal_buffer;
+					if (const auto hr = fixed_function::dynamic_decal_vb->Lock(0, 64, &dynamic_decal_buffer, 0);
+						hr >= 0)
+					{
+						/*struct decal_surf_s
+						{
+							game::vec3_t pos;
+							game::vec2_t texcoords;
+							unsigned int color;
+						};*/
+
+						const auto ds = static_cast<decal_surf_s*>(dynamic_decal_buffer);
+
+						// #
+						// #
+
+						void* world_surface_data;
+						if (const auto hr = gfx_world_vertexbuffer->Lock(WORLD_VERTEX_STRIDE * tris->firstVertex, WORLD_VERTEX_STRIDE, &world_surface_data, D3DLOCK_READONLY);
+							hr >= 0)
+						{
+							const auto ws = static_cast<unpacked_world_vert*>(world_surface_data);
+
+							// #
+							// #
+
+							const auto layer_buffer = game::sp::get_g_world_draw()->vld.layerVb;
+							void* layer_surface_data;
+							if (const auto hr = layer_buffer->Lock(tris->vertexLayerData, stride, &layer_surface_data, D3DLOCK_READONLY);
+								hr >= 0)
+							{
+								struct layer_surf_s
+								{
+									float u0;
+									float v0;
+								};
+
+								const auto ls = static_cast<layer_surf_s*>(layer_surface_data);
+
+								ds->pos[0] = ws->pos[0];
+								ds->pos[1] = ws->pos[1];
+								ds->pos[2] = ws->pos[2];
+
+								ds->texcoords[0] = ls->u0;
+								ds->texcoords[0] = ls->v0;
+
+								auto col = static_cast<game::GfxColor>(ws->color);
+								col.array[3] = col.array[0]; // r channel is used as blend for layer1 ?
+								col.array[0] = 0xff;
+								col.array[1] = 0xff;
+								col.array[2] = 0xff;
+								//col.array[3] = 0xff;
+								ds->color = col.packed;
+
+								succeeded = true;
+
+								//layer_buffer->Unlock(); // unlock really needed?
+							}
+
+							gfx_world_vertexbuffer->Unlock();
+						}
+
+						fixed_function::dynamic_decal_vb->Unlock();
+					}
+
+					if (succeeded)
+					{
+						dev->SetStreamSource(0, fixed_function::dynamic_decal_vb, 0, 20);
+						dev->SetFVF(D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1);
+					}
+#endif
+					dev->SetTextureStageState(0, D3DTSS_TEXCOORDINDEX, 0);
+					dev->SetTexture(0, state->samplerTexture[arg.dest]->basemap);
+					dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, tris->vertexCount, baseIndex, triCount);
+				}
+				else if (arg.type == 2 && arg.u.codeSampler == 3054311507)
+				{
+					dev->SetTextureStageState(0, D3DTSS_TEXCOORDINDEX, 1);
+					dev->SetTexture(0, state->samplerTexture[arg.dest]->basemap);
+					dev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, tris->vertexCount, baseIndex, triCount);
+				}
+			}
+
+			dev->SetFVF(WORLD_VERTEX_FORMAT);
+			dev->SetRenderState(D3DRS_ALPHABLENDENABLE, og_alphablend);
+			dev->SetTexture(0, og_tex);
+		}
+
 		if (is_water)
 		{
 			dev->SetTransform(D3DTS_TEXTURE0, &saved_trans);
@@ -1075,6 +1271,11 @@ namespace components::sp
 		// setup fixed-function
 
 		dev->SetFVF(WORLD_VERTEX_FORMAT);
+
+		IDirect3DVertexShader9* s_vs = nullptr;
+		dev->GetVertexShader(&s_vs);
+		IDirect3DPixelShader9* s_ps = nullptr;
+		dev->GetPixelShader(&s_ps);
 
 		// def. needed or the game will render the mesh using shaders
 		dev->SetVertexShader(nullptr);
@@ -1129,6 +1330,23 @@ namespace components::sp
 		// restore everything for following meshes rendered via shaders
 
 		dev->SetFVF(NULL);
+		dev->SetVertexShader(s_vs);
+		dev->SetPixelShader(s_ps);
+	}
+
+	__declspec(naked) void R_DrawBspDrawSurfsPreTessLit_stub()
+	{
+		const static uint32_t retn_addr = 0x73EC35;
+		__asm
+		{
+			pushad;
+			push	eax; // primDrawSurfPos
+			call	R_DrawBspDrawSurfsPreTess;
+			add		esp, 4;
+			popad;
+
+			jmp		retn_addr;
+		}
 	}
 
 	// *
@@ -1521,11 +1739,19 @@ namespace components::sp
 		{
 			if (gfx_world_vertexbuffer)
 			{
-				gfx_world_vertexbuffer->Release();
-				gfx_world_vertexbuffer = nullptr;
-
 				__debugbreak();
 				//Com_Error(0, "build_gfxworld_buffers :: gfx_world_vertexbuffer != nullptr");
+			}
+
+			if (decal_vertexbuffer)
+			{
+				__debugbreak();
+			}
+
+			if (const auto hr = dev->CreateVertexBuffer(WORLD_DECAL_STRIDE * rgp->world->draw.vertexCount, D3DUSAGE_DYNAMIC, WORLD_DECAL_FORMAT, D3DPOOL_DEFAULT, &decal_vertexbuffer, nullptr);
+				hr < 0)
+			{
+				__debugbreak();
 			}
 
 			if (auto hr = dev->CreateVertexBuffer(WORLD_VERTEX_STRIDE * rgp->world->draw.vertexCount, D3DUSAGE_WRITEONLY, WORLD_VERTEX_FORMAT, D3DPOOL_DEFAULT, &gfx_world_vertexbuffer, nullptr);
@@ -1534,6 +1760,13 @@ namespace components::sp
 				if (hr = gfx_world_vertexbuffer->Lock(0, 0, &vertex_buffer_data, 0);
 					hr >= 0)
 				{
+					void* decal_buffer_data = nullptr;
+					if (hr = decal_vertexbuffer->Lock(0, 0, &decal_buffer_data, 0);
+						hr < 0)
+					{
+						__debugbreak();
+					}
+
 					/*	struct GfxWorldVertex = 44 bytes
 					{
 						float xyz[3];
@@ -1552,13 +1785,20 @@ namespace components::sp
 						const auto src_vert = rgp->world->draw.vd.vertices[i];
 
 						// position of our unpacked vert within the vertex buffer
-						const auto v_pos_in_buffer = i * WORLD_VERTEX_STRIDE; // pos-xyz ; normal-xyz ; texcoords uv = 32 byte 
-						const auto v = reinterpret_cast<unpacked_world_vert*>(((DWORD)vertex_buffer_data + v_pos_in_buffer));
+						//const auto v_pos_in_buffer = i * WORLD_VERTEX_STRIDE; // pos-xyz ; normal-xyz ; texcoords uv = 32 byte 
+						const auto v = reinterpret_cast<unpacked_world_vert*>(((DWORD)vertex_buffer_data + (i * WORLD_VERTEX_STRIDE)));
+
+						const auto vdecal = reinterpret_cast<decal_surf_s*>(((DWORD)decal_buffer_data + (i * WORLD_DECAL_STRIDE)));
 
 						// vert pos
 						v->pos[0] = src_vert.xyz[0];
 						v->pos[1] = src_vert.xyz[1];
 						v->pos[2] = src_vert.xyz[2];
+
+						// also update decal buffer vert
+						vdecal->pos[0] = src_vert.xyz[0];
+						vdecal->pos[1] = src_vert.xyz[1];
+						vdecal->pos[2] = src_vert.xyz[2];
 
 						// unpack and assign vert normal
 
@@ -1582,19 +1822,37 @@ namespace components::sp
 						// packed vertex color : used for alpha blending of decals
 						v->color = col.packed;
 
+						//col = src_vert.color;
+						col.array[0] = 0xff;
+						col.array[1] = 0xff;
+						col.array[2] = 0xff;
+						col.array[3] = src_vert.color.array[1]; // b should hold alpha for layer1
+						vdecal->color = col.packed;
+
 						// uv's
 						v->texcoord[0] = src_vert.texCoord[0];
 						v->texcoord[1] = src_vert.texCoord[1];
 					}
 
 					gfx_world_vertexbuffer->Unlock();
+					decal_vertexbuffer->Unlock();
 				}
 				else
 				{
 					gfx_world_vertexbuffer->Release();
 					gfx_world_vertexbuffer = nullptr;
+
+					decal_vertexbuffer->Release();
+					decal_vertexbuffer = nullptr;
 				}
 			}
+
+			// decal_vertexbuffer
+			
+				/*if (hr = gfx_world_vertexbuffer->Lock(0, 0, &vertex_buffer_data, 0);
+					hr >= 0)
+				{
+				}*/
 		}
 	}
 
@@ -1627,6 +1885,12 @@ namespace components::sp
 		{
 			gfx_world_vertexbuffer->Release();
 			gfx_world_vertexbuffer = nullptr;
+		}
+
+		if (decal_vertexbuffer)
+		{
+			decal_vertexbuffer->Release();
+			decal_vertexbuffer = nullptr;
 		}
 
 		// clear list that keeps track of the vertices that had were modified after building the gfxworld buffer
@@ -1819,6 +2083,25 @@ namespace components::sp
 		utils::hook::nop(0x6C806A, 8);
 		utils::hook(0x6C806A, add_znear_depthhack_stub, HOOK_JUMP).install()->quick();
 #endif
+		// lit rendering
+		utils::hook::set<BYTE>(0x6D218D, 0xEB); // 0x6D218D to jmp
+		utils::hook::nop(0x6D21F6, 2); // 0x6D21F6 nop 2 (depthprepass 1)
+		utils::hook::nop(0x6D21FA, 6); utils::hook::jump(0x6D21FA, 0x6D22FC); // 0x6D21FA to jmp (depthprepass 2 - just in case)
+		utils::hook::set<BYTE>(0x6D24FA, 0xEB); // 0x6D24FA to jmp (depthprepass 3)
+		utils::hook::set<BYTE>(0x6D25C3, 0xEB); // 0x6D25C3 to jmp (supportsSceneNullRenderTarget - not needed?)
+		utils::hook::set<BYTE>(0x6D2631, 0xEB); // 0x6D2631 to jmp (CloakPrePass)
+		utils::hook::nop(0x6D2666, 6); utils::hook::jump(0x6D2666, 0x6D26F6); // 0x6D2666 to jmp (rgp.needMaterialPreload)
+		utils::hook::nop(0x6D26FD, 6); utils::hook::jump(0x6D26FD, 0x6D27AF); // 0x6D26FD to jmp (Resolve IntZ)
+		utils::hook::set<BYTE>(0x6D27B6, 0xEB); // 0x6D27B6 to jmp (Resolve Distortion)
+		utils::hook::set<BYTE>(0x6D27C4, 0xEB); // 0x6D27C4 to jmp (Draw Reflected)
+		utils::hook::nop(0x6D28D6, 5); // 0x6D28D6 nop 5 (Draw Sun)
+		utils::hook::set<BYTE>(0x6D28E2, 0xEB); // 0x6D28E2 to jmp (disable sun coronas)
+		utils::hook::set<BYTE>(0x6D2909, 0xEB); // 0x6D2909 to jmp (disable superflare occluders)
+		utils::hook::nop(0x6D291B, 6); utils::hook::jump(0x6D291B, 0x6D29C7); // 0x6D291B to jmp (Resolve IntZ #2)
+		utils::hook::nop(0x6D29FC, 5); // 0x6D29FC nop 5 (Resolve Distortion #2)
+		utils::hook::nop(0x6D2B12, 6); utils::hook::jump(0x6D2B12, 0x6D2C24); // 0x6D2B12 to jmp (postEmissiveBrightening)
+		utils::hook::set<BYTE>(0x6D2C2B, 0xEB); // 0x6D2C2B to jmp (CloakPostEmissive)
+		utils::hook::set<BYTE>(0x6D2C90, 0xEB); // 0x6D2C90 to jmp (disable post fx)
 
 		if (!flags::has_flag("no_rtx"))
 		{
@@ -1850,6 +2133,8 @@ namespace components::sp
 			// fixed-function rendering of world surfaces (R_TessTrianglesPreTessList)
 			utils::hook(0x73EC45, R_DrawBspDrawSurfsPreTess, HOOK_CALL).install()->quick(); // r_pretess 1
 			utils::hook(0x73EA98, R_DrawBspDrawSurfs, HOOK_CALL).install()->quick(); // r_pretess 0 (without surface batching)
+
+			utils::hook(0x73EC30, R_DrawBspDrawSurfsPreTessLit_stub, HOOK_JUMP).install()->quick(); // LIT : r_pretess 1
 
 			// #
 			// fixed-function rendering of brushmodels

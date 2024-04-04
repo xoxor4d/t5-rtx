@@ -11,6 +11,7 @@ namespace components::sp
 
 		static inline IDirect3DBaseTexture9* last_valid_sky_texture = nullptr;
 		static inline IDirect3DVertexBuffer9* dynamic_codemesh_vb = nullptr;
+		static inline IDirect3DVertexBuffer9* dynamic_decal_vb = nullptr;
 
 		struct vb_vert_range_s
 		{
