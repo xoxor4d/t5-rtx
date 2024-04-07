@@ -1448,12 +1448,12 @@ namespace components::sp
 		}
 
 #else
-		if (prim->streams[0].vb != fixed_function::dynamic_codemesh_vb || prim->streams[0].offset != 0 || prim->streams[0].stride != MODEL_VERTEX_STRIDE)
+		if (prim->streams[0].vb != fixed_function::dynamic_codemesh_vb || prim->streams[0].offset != 0 || prim->streams[0].stride != FX_VERTEX_STRIDE)
 		{
 			prim->streams[0].vb = fixed_function::dynamic_codemesh_vb;
 			prim->streams[0].offset = 0;
-			prim->streams[0].stride = MODEL_VERTEX_STRIDE;
-			prim->device->SetStreamSource(0, fixed_function::dynamic_codemesh_vb, 0, MODEL_VERTEX_STRIDE);
+			prim->streams[0].stride = FX_VERTEX_STRIDE;
+			prim->device->SetStreamSource(0, prim->streams[0].vb, prim->streams[0].offset, prim->streams[0].stride);
 		}
 #endif
 
